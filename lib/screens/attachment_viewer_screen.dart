@@ -7,6 +7,8 @@ import 'package:chewie/chewie.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path/path.dart' as p;
+import 'package:permission_handler/permission_handler.dart';
 import '../models/node_model.dart';
 import '../theme/app_colors.dart';
 import '../providers/mountmap_provider.dart';
@@ -281,6 +283,7 @@ class _AttachmentViewerScreenState extends State<AttachmentViewerScreen> {
     final ext = widget.item.value.toLowerCase();
     final isTxt = ext.endsWith('.txt');
     final isLink = widget.item.type == 'link';
+    final isFileAttachment = !isLink;
 
     return Scaffold(
       backgroundColor: provider.backgroundColor,
@@ -290,6 +293,12 @@ class _AttachmentViewerScreenState extends State<AttachmentViewerScreen> {
         iconTheme: IconThemeData(color: provider.textColor),
         elevation: 0,
         actions: [
+          if (isFileAttachment)
+            IconButton(
+              icon: const Icon(Icons.download_rounded, color: MountMapColors.teal),
+              tooltip: "Simpan ke /sdcard/Download",
+              onPressed: _saveAttachmentToDevice,
+            ),
           if (isTxt)
             _isSaving
               ? const Center(child: Padding(padding: EdgeInsets.only(right: 16), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: MountMapColors.teal))))
@@ -302,6 +311,64 @@ class _AttachmentViewerScreenState extends State<AttachmentViewerScreen> {
       body: _buildBody(ext, provider),
       bottomNavigationBar: isTxt ? _buildMiniToolbar(provider) : (isLink ? _buildWebToolbar(provider) : null),
     );
+  }
+
+  Future<void> _saveAttachmentToDevice() async {
+    if (!Platform.isAndroid) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Fitur ini khusus Android"), backgroundColor: Colors.orangeAccent),
+      );
+      return;
+    }
+
+    try {
+      final hasManageAccess = await Permission.manageExternalStorage.request().isGranted;
+      final hasStorageAccess = await Permission.storage.request().isGranted;
+
+      if (!hasManageAccess && !hasStorageAccess) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Izin akses penyimpanan ditolak. Aktifkan izin agar file bisa disimpan ke /sdcard."),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+
+      final source = File(widget.item.value);
+      if (!await source.exists()) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("File attachment tidak ditemukan"), backgroundColor: Colors.redAccent),
+        );
+        return;
+      }
+
+      final destinationDir = Directory('/storage/emulated/0/Download/MountMap');
+      await destinationDir.create(recursive: true);
+
+      final fileName = widget.item.name.trim().isEmpty ? p.basename(widget.item.value) : widget.item.name;
+      final safeName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+      final destinationPath = p.join(destinationDir.path, safeName);
+
+      await source.copy(destinationPath);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("File disimpan ke: $destinationPath"),
+          backgroundColor: MountMapColors.teal,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal menyimpan ke /sdcard: $e"), backgroundColor: Colors.redAccent),
+      );
+    }
   }
 
   Future<void> _saveTextFile() async {
