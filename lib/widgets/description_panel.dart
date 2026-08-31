@@ -1130,6 +1130,50 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
     );
   }
 
+  void _evaluateExcelFormulas(List<List<String>> data) {
+    if (data.length < 2) return;
+
+    for (int r = 1; r < data.length; r++) {
+      for (int c = 0; c < data[r].length; c++) {
+        final val = data[r][c].trim();
+        if (val.startsWith('=')) {
+          final upper = val.toUpperCase();
+          if (upper.startsWith('=SUM(')) {
+            final nums = _extractColumnNumbers(data, c, r);
+            final sum = nums.fold(0.0, (a, b) => a + b);
+            data[r][c] = sum % 1 == 0 ? sum.toInt().toString() : sum.toStringAsFixed(2);
+          } else if (upper.startsWith('=AVG(') || upper.startsWith('=AVERAGE(')) {
+            final nums = _extractColumnNumbers(data, c, r);
+            final avg = nums.isNotEmpty ? nums.fold(0.0, (a, b) => a + b) / nums.length : 0.0;
+            data[r][c] = avg % 1 == 0 ? avg.toInt().toString() : avg.toStringAsFixed(2);
+          } else if (upper.startsWith('=MIN(')) {
+            final nums = _extractColumnNumbers(data, c, r);
+            final min = nums.isNotEmpty ? nums.reduce((a, b) => a < b ? a : b) : 0.0;
+            data[r][c] = min % 1 == 0 ? min.toInt().toString() : min.toStringAsFixed(2);
+          } else if (upper.startsWith('=MAX(')) {
+            final nums = _extractColumnNumbers(data, c, r);
+            final max = nums.isNotEmpty ? nums.reduce((a, b) => a > b ? a : b) : 0.0;
+            data[r][c] = max % 1 == 0 ? max.toInt().toString() : max.toStringAsFixed(2);
+          } else if (upper.startsWith('=COUNT(')) {
+            final nums = _extractColumnNumbers(data, c, r);
+            data[r][c] = nums.length.toString();
+          }
+        }
+      }
+    }
+  }
+
+  List<double> _extractColumnNumbers(List<List<String>> data, int colIndex, int untilRow) {
+    final nums = <double>[];
+    for (int r = 1; r < untilRow; r++) {
+      if (colIndex < data[r].length) {
+        final d = double.tryParse(data[r][colIndex]);
+        if (d != null) nums.add(d);
+      }
+    }
+    return nums;
+  }
+
   void _showAddLinkForTableCell(
     MountMapProvider provider,
     List<List<String>> data,
@@ -1378,6 +1422,14 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                         PopupMenuButton<String>(
                           tooltip: 'Table actions',
                           icon: const Icon(Icons.more_vert_rounded, color: MountMapColors.teal),
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(value: 'add_row', child: Row(children: [Icon(Icons.add_rounded, size: 16), SizedBox(width: 8), Text('Add Row Below')])),
+                            PopupMenuItem(value: 'add_column', child: Row(children: [Icon(Icons.view_column_rounded, size: 16), SizedBox(width: 8), Text('Add Column Right')])),
+                            PopupMenuItem(value: 'eval_formulas', child: Row(children: [Icon(Icons.functions_rounded, size: 16, color: MountMapColors.teal), SizedBox(width: 8), Text('Evaluate Formulas (=SUM, =AVG)')])),
+                            PopupMenuItem(value: 'clear_selection', child: Row(children: [Icon(Icons.deselect_rounded, size: 16), SizedBox(width: 8), Text('Clear Selection')])),
+                            PopupMenuItem(value: 'remove_row', child: Row(children: [Icon(Icons.remove_rounded, size: 16), SizedBox(width: 8), Text('Remove Last Row')])),
+                            PopupMenuItem(value: 'remove_column', child: Row(children: [Icon(Icons.view_column_rounded, size: 16), SizedBox(width: 8), Text('Remove Last Column')])),
+                          ],
                           onSelected: (value) {
                             setModalState(() {
                               if (value == 'add_row') {
@@ -1386,6 +1438,12 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                 for (var r in data) {
                                   r.add("");
                                 }
+                              } else if (value == 'clear_selection') {
+                                selectedCells.clear();
+                                selectedMode = 'Selection';
+                              } else if (value == 'eval_formulas') {
+                                _evaluateExcelFormulas(data);
+                                _tableGeneration++;
                               } else if (value == 'remove_row') {
                                 if (data.length > 1) {
                                   data.removeLast();
@@ -1399,12 +1457,6 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                               }
                             });
                           },
-                          itemBuilder: (context) => const [
-                            PopupMenuItem(value: 'add_row', child: Row(children: [Icon(Icons.add_rounded, size: 16), SizedBox(width: 8), Text('Add Row')])),
-                            PopupMenuItem(value: 'add_column', child: Row(children: [Icon(Icons.view_column_rounded, size: 16), SizedBox(width: 8), Text('Add Column')])),
-                            PopupMenuItem(value: 'remove_row', child: Row(children: [Icon(Icons.remove_rounded, size: 16), SizedBox(width: 8), Text('Remove Row')])),
-                            PopupMenuItem(value: 'remove_column', child: Row(children: [Icon(Icons.view_column_rounded, size: 16), SizedBox(width: 8), Text('Remove Column')])),
-                          ],
                         ),
                       ],
                     ),
