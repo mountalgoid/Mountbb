@@ -4,6 +4,15 @@ import 'dart:math' as math;
 import '../models/node_model.dart';
 import '../theme/app_colors.dart';
 
+String cleanCellValue(String raw) {
+  if (raw.startsWith(DescriptionBlock.tableFilePrefix) || raw.startsWith(DescriptionBlock.tableLinkPrefix)) {
+    final payload = raw.replaceFirst(DescriptionBlock.tableFilePrefix, '').replaceFirst(DescriptionBlock.tableLinkPrefix, '');
+    final idx = payload.indexOf('|');
+    return idx != -1 ? payload.substring(0, idx) : payload;
+  }
+  return raw;
+}
+
 class ChartEnginePainter extends CustomPainter {
   final String chartType;
   final NodeModel? data;

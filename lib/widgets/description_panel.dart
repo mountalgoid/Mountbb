@@ -1408,8 +1408,8 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                       final int cIdx = colEntry.key;
                                       final cellKey = "${rIdx}_${cIdx}";
                                       final isCellSelected = selectedCells.contains(cellKey);
-                                      final bool isAttachmentCell = !isChart && _isTableAttachmentValue(colEntry.value);
-                                      final String displayValue = isChart ? colEntry.value : _displayTableCellValue(colEntry.value);
+                                      final bool isAttachmentCell = _isTableAttachmentValue(colEntry.value);
+                                      final String displayValue = _displayTableCellValue(colEntry.value);
 
                                       return InkWell(
                                         onTap: () {
@@ -1521,7 +1521,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                   const PopupMenuItem(value: 'move_right', child: Row(children: [Icon(Icons.arrow_forward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Right')])),
                                                   const PopupMenuItem(value: 'move_up', child: Row(children: [Icon(Icons.arrow_upward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Up')])),
                                                   const PopupMenuItem(value: 'move_down', child: Row(children: [Icon(Icons.arrow_downward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Down')])),
-                                                  if (!isChart && rIdx != 0)
+                                                  if (rIdx != 0)
                                                     const PopupMenuItem(
                                                       value: 'attach_file',
                                                       child: Row(
@@ -1532,7 +1532,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                         ],
                                                       ),
                                                     ),
-                                                  if (!isChart && rIdx != 0)
+                                                  if (rIdx != 0)
                                                     const PopupMenuItem(
                                                       value: 'attach_link',
                                                       child: Row(
@@ -1543,7 +1543,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                         ],
                                                       ),
                                                     ),
-                                                  if (!isChart && rIdx != 0 && isAttachmentCell)
+                                                  if (rIdx != 0 && isAttachmentCell)
                                                     const PopupMenuItem(
                                                       value: 'open',
                                                       child: Row(
@@ -1554,7 +1554,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                         ],
                                                       ),
                                                     ),
-                                                  if (!isChart && rIdx != 0 && isAttachmentCell)
+                                                  if (rIdx != 0 && isAttachmentCell)
                                                     const PopupMenuItem(
                                                       value: 'clear_attachment',
                                                       child: Row(
