@@ -1685,6 +1685,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
     String selectedMode = 'Selection'; // 'Selection', 'Column', 'Row', 'All'
     int? activeColumn;
     int? activeRow;
+    String filterQuery = "";
 
     showModalBottomSheet(
       context: context,
@@ -1901,6 +1902,31 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
 
                 const SizedBox(height: 8),
 
+                // LIVE SEARCH ROW FILTER BAR
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: TextField(
+                    style: TextStyle(color: provider.textColor, fontSize: 12),
+                    decoration: InputDecoration(
+                      hintText: "Filter rows in table...",
+                      hintStyle: TextStyle(color: provider.textColor.withValues(alpha: 0.4), fontSize: 12),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18, color: MountMapColors.teal),
+                      suffixIcon: filterQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 16),
+                              onPressed: () => setModalState(() => filterQuery = ""),
+                            )
+                          : null,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      filled: true,
+                      fillColor: provider.textColor.withValues(alpha: 0.04),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                    onChanged: (val) => setModalState(() => filterQuery = val.trim().toLowerCase()),
+                  ),
+                ),
+
                 // SMART CALCULATOR / MATHEMATICS ANALYTICS BAR
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -2085,7 +2111,10 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                 }),
                               ],
                             ),
-                            ...data.asMap().entries.map((rowEntry) {
+                            ...data.asMap().entries.where((rowEntry) {
+                              if (rowEntry.key == 0 || filterQuery.isEmpty) return true;
+                              return rowEntry.value.any((cell) => cell.toLowerCase().contains(filterQuery));
+                            }).map((rowEntry) {
                               final int rIdx = rowEntry.key;
                               final isRowSelected = selectedMode == 'Row' && activeRow == rIdx;
 
@@ -2987,19 +3016,23 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
 
   Widget _buildTableBlock(DescriptionBlock block, MountMapProvider provider, NodeModel node, Color textColor) {
     final tableData = block.tableData ?? [];
+    final GlobalKey tableRepaintKey = GlobalKey();
+
     return Column(
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: textColor.withValues(alpha: 0.03),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: textColor.withValues(alpha: 0.05)),
-          ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Table(
+        RepaintBoundary(
+          key: tableRepaintKey,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: provider.cardColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: textColor.withValues(alpha: 0.05)),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Table(
               defaultColumnWidth: const IntrinsicColumnWidth(),
               border: TableBorder.all(color: textColor.withValues(alpha: 0.1), width: 0.5),
               children: tableData.asMap().entries.map((rowEntry) {
@@ -3030,6 +3063,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
               }).toList(),
             ),
           ),
+        ),
         ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -3069,10 +3103,19 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                 ),
               ],
             ),
-            TextButton.icon(
-              icon: const Icon(Icons.edit_rounded, size: 14),
-              label: const Text("Edit Table", style: TextStyle(fontSize: 12)),
-              onPressed: () => _showTableEditor(provider, node.id, block.id),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.image_rounded, size: 16, color: Colors.amberAccent),
+                  tooltip: "Export Table PNG Image",
+                  onPressed: () => _exportEmbeddedChartToPNG(tableRepaintKey, "Table"),
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.edit_rounded, size: 14),
+                  label: const Text("Edit Table", style: TextStyle(fontSize: 12)),
+                  onPressed: () => _showTableEditor(provider, node.id, block.id),
+                ),
+              ],
             ),
           ],
         )
