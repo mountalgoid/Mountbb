@@ -915,6 +915,151 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
     );
   }
 
+  Widget _renderSmartTableCell(
+    String value, {
+    required Color textColor,
+    bool isHeader = false,
+    VoidCallback? onTap,
+    Function(String)? onToggleCheckbox,
+  }) {
+    if (_isTableAttachmentValue(value)) {
+      final parsed = _parseTableAttachmentValue(value);
+      final isLink = value.startsWith(DescriptionBlock.tableLinkPrefix);
+      return InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: MountMapColors.teal.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: MountMapColors.teal.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(isLink ? Icons.link_rounded : Icons.insert_drive_file_rounded, size: 13, color: MountMapColors.teal),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  parsed.name,
+                  style: const TextStyle(color: MountMapColors.teal, fontSize: 11, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.open_in_new_rounded, size: 11, color: MountMapColors.teal),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final trimmed = value.trim();
+    final lower = trimmed.toLowerCase();
+
+    // Checkbox Cell Type
+    if (lower == '[x]' || lower == '✓' || lower == 'true' || lower == 'done') {
+      return InkWell(
+        onTap: () => onToggleCheckbox?.call('[ ]'),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_box_rounded, color: Colors.greenAccent, size: 18),
+            const SizedBox(width: 4),
+            Text(trimmed, style: const TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+    }
+    if (lower == '[ ]' || lower == '☐' || lower == 'false' || lower == 'todo') {
+      return InkWell(
+        onTap: () => onToggleCheckbox?.call('[x]'),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_box_outline_blank_rounded, color: textColor.withValues(alpha: 0.4), size: 18),
+            const SizedBox(width: 4),
+            Text(trimmed, style: TextStyle(color: textColor.withValues(alpha: 0.5), fontSize: 11)),
+          ],
+        ),
+      );
+    }
+
+    // Rating Star Renderer
+    if (trimmed.contains('★') || RegExp(r'^\d/5$').hasMatch(trimmed) || RegExp(r'^\d stars$').hasMatch(lower)) {
+      int rating = 5;
+      final match = RegExp(r'^(\d)').firstMatch(trimmed);
+      if (match != null) {
+        rating = int.tryParse(match.group(1)!) ?? 5;
+      } else {
+        rating = '★'.allMatches(trimmed).length;
+      }
+      rating = rating.clamp(1, 5);
+
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ...List.generate(5, (starIdx) => Icon(
+            starIdx < rating ? Icons.star_rounded : Icons.star_border_rounded,
+            size: 14,
+            color: Colors.amberAccent,
+          )),
+          const SizedBox(width: 4),
+          Text('$rating/5', style: const TextStyle(color: Colors.amberAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+        ],
+      );
+    }
+
+    // Status Badge Pill Renderer & Conditional Formatting Colors
+    Color? badgeBg;
+    Color? badgeText;
+
+    if (['completed', 'done', 'surplus', 'active', 'optimal', 'healthy', 'paid', '100%', 'high security', 'efficient'].contains(lower) || lower.contains('done')) {
+      badgeBg = Colors.greenAccent.withValues(alpha: 0.15);
+      badgeText = Colors.greenAccent;
+    } else if (['in progress', 'review', 'medium', 'expiring soon', 'warning', '75%'].contains(lower)) {
+      badgeBg = Colors.cyanAccent.withValues(alpha: 0.15);
+      badgeText = Colors.cyanAccent;
+    } else if (['overbudget', 'critical', 'high', 'very high', 'risk', 'tired'].contains(lower) || lower.startsWith('-')) {
+      badgeBg = Colors.redAccent.withValues(alpha: 0.15);
+      badgeText = Colors.redAccent;
+    } else if (['backlog', 'low', 'safe', 'on target', 'rested'].contains(lower) || lower.startsWith('+')) {
+      badgeBg = MountMapColors.teal.withValues(alpha: 0.15);
+      badgeText = MountMapColors.teal;
+    }
+
+    if (badgeBg != null && badgeText != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: badgeBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: badgeText.withValues(alpha: 0.3)),
+        ),
+        child: Text(
+          trimmed,
+          style: TextStyle(color: badgeText, fontSize: 11, fontWeight: FontWeight.w800),
+        ),
+      );
+    }
+
+    // Currency Formatting for pure numbers
+    final numVal = double.tryParse(trimmed);
+    String formattedText = trimmed;
+    if (numVal != null && numVal.abs() >= 1000 && !trimmed.contains('.')) {
+      formattedText = trimmed.replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '.');
+    }
+
+    return Text(
+      formattedText.isEmpty ? '-' : formattedText,
+      style: TextStyle(
+        color: isHeader ? textColor : (formattedText.isEmpty ? textColor.withValues(alpha: 0.3) : textColor),
+        fontSize: isHeader ? 12 : 12,
+        fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
+      ),
+    );
+  }
+
   String _displayTableCellValue(String value) {
     if (!_isTableAttachmentValue(value)) return value;
     final parsed = _parseTableAttachmentValue(value);
@@ -943,6 +1088,80 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
         const SnackBar(content: Text('Failed to attach file to table cell')),
       );
     }
+  }
+
+    void _showFindAndReplaceDialog({
+    required BuildContext context,
+    required MountMapProvider provider,
+    required List<List<String>> data,
+    required VoidCallback onApplied,
+  }) {
+    final findCtrl = TextEditingController();
+    final replaceCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: provider.cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.find_replace_rounded, color: MountMapColors.teal),
+            const SizedBox(width: 8),
+            Text('Find & Replace in Table', style: TextStyle(color: provider.textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: findCtrl,
+              style: TextStyle(color: provider.textColor),
+              decoration: InputDecoration(
+                labelText: 'Find Text / Pattern',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: replaceCtrl,
+              style: TextStyle(color: provider.textColor),
+              decoration: InputDecoration(
+                labelText: 'Replace With',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: MountMapColors.teal, foregroundColor: Colors.white),
+            onPressed: () {
+              final query = findCtrl.text;
+              final replacement = replaceCtrl.text;
+              if (query.isNotEmpty) {
+                int replaceCount = 0;
+                for (int r = 0; r < data.length; r++) {
+                  for (int c = 0; c < data[r].length; c++) {
+                    if (data[r][c].contains(query)) {
+                      data[r][c] = data[r][c].replaceAll(query, replacement);
+                      replaceCount++;
+                    }
+                  }
+                }
+                Navigator.pop(context);
+                onApplied();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Replaced $replaceCount occurrence(s)'), backgroundColor: MountMapColors.teal),
+                );
+              }
+            },
+            child: const Text('REPLACE ALL'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showAutoFillDialog({
@@ -1590,6 +1809,8 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                           tooltip: 'Table actions',
                           icon: const Icon(Icons.more_vert_rounded, color: MountMapColors.teal),
                           itemBuilder: (context) => const [
+                            PopupMenuItem(value: 'find_replace', child: Row(children: [Icon(Icons.find_replace_rounded, size: 16, color: MountMapColors.teal), SizedBox(width: 8), Text('Find & Replace Text')])),
+                            PopupMenuItem(value: 'add_summary_row', child: Row(children: [Icon(Icons.calculate_rounded, size: 16, color: MountMapColors.teal), SizedBox(width: 8), Text('Add Summary Total Row')])),
                             PopupMenuItem(value: 'add_row', child: Row(children: [Icon(Icons.add_rounded, size: 16), SizedBox(width: 8), Text('Add Row Below')])),
                             PopupMenuItem(value: 'add_column', child: Row(children: [Icon(Icons.view_column_rounded, size: 16), SizedBox(width: 8), Text('Add Column Right')])),
                             PopupMenuItem(value: 'export_csv', child: Row(children: [Icon(Icons.file_upload_rounded, size: 16, color: Colors.amberAccent), SizedBox(width: 8), Text('Export to CSV File')])),
@@ -1600,6 +1821,15 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                             PopupMenuItem(value: 'remove_column', child: Row(children: [Icon(Icons.view_column_rounded, size: 16), SizedBox(width: 8), Text('Remove Last Column')])),
                           ],
                           onSelected: (value) async {
+                            if (value == 'find_replace') {
+                              _showFindAndReplaceDialog(
+                                context: context,
+                                provider: provider,
+                                data: data,
+                                onApplied: () => setModalState(() => _tableGeneration++),
+                              );
+                              return;
+                            }
                             if (value == 'export_csv') {
                               await _exportTableToCSV(data);
                               return;
@@ -1615,7 +1845,30 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                               return;
                             }
                             setModalState(() {
-                              if (value == 'add_row') {
+                              if (value == 'add_summary_row' && data.length > 1) {
+                                final summaryRow = <String>[];
+                                summaryRow.add('TOTAL / SUMMARY');
+                                for (int c = 1; c < data[0].length; c++) {
+                                  double s = 0;
+                                  int count = 0;
+                                  for (int r = 1; r < data.length; r++) {
+                                    if (c < data[r].length) {
+                                      final v = double.tryParse(data[r][c]);
+                                      if (v != null) {
+                                        s += v;
+                                        count++;
+                                      }
+                                    }
+                                  }
+                                  if (count > 0) {
+                                    summaryRow.add(s % 1 == 0 ? s.toInt().toString() : s.toStringAsFixed(2));
+                                  } else {
+                                    summaryRow.add('-');
+                                  }
+                                }
+                                data.add(summaryRow);
+                                _tableGeneration++;
+                              } else if (value == 'add_row') {
                                 data.add(List.generate(data[0].length, (_) => ""));
                               } else if (value == 'add_column') {
                                 for (var r in data) {
@@ -1783,6 +2036,30 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                 for (var r in data) {
                                                   r.removeAt(cIdx);
                                                 }
+                                              } else if (value == 'sort_asc' && data.length > 2) {
+                                                final header = data.first;
+                                                final body = data.sublist(1);
+                                                body.sort((a, b) {
+                                                  final valA = cIdx < a.length ? a[cIdx] : '';
+                                                  final valB = cIdx < b.length ? b[cIdx] : '';
+                                                  final numA = double.tryParse(valA);
+                                                  final numB = double.tryParse(valB);
+                                                  if (numA != null && numB != null) return numA.compareTo(numB);
+                                                  return valA.toLowerCase().compareTo(valB.toLowerCase());
+                                                });
+                                                data = [header, ...body];
+                                              } else if (value == 'sort_desc' && data.length > 2) {
+                                                final header = data.first;
+                                                final body = data.sublist(1);
+                                                body.sort((a, b) {
+                                                  final valA = cIdx < a.length ? a[cIdx] : '';
+                                                  final valB = cIdx < b.length ? b[cIdx] : '';
+                                                  final numA = double.tryParse(valA);
+                                                  final numB = double.tryParse(valB);
+                                                  if (numA != null && numB != null) return numB.compareTo(numA);
+                                                  return valB.toLowerCase().compareTo(valA.toLowerCase());
+                                                });
+                                                data = [header, ...body];
                                               } else if (value == 'sum_column') {
                                                 double s = 0;
                                                 for (int r = 1; r < data.length; r++) {
@@ -1793,6 +2070,8 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                             });
                                           },
                                           itemBuilder: (context) => [
+                                            const PopupMenuItem(value: 'sort_asc', child: Row(children: [Icon(Icons.sort_by_alpha_rounded, size: 16, color: MountMapColors.teal), SizedBox(width: 8), Text('Sort Ascending (A-Z / 0-9)')])),
+                                            const PopupMenuItem(value: 'sort_desc', child: Row(children: [Icon(Icons.sort_by_alpha_rounded, size: 16, color: MountMapColors.violet), SizedBox(width: 8), Text('Sort Descending (Z-A / 9-0)')])),
                                             const PopupMenuItem(value: 'sum_column', child: Row(children: [Icon(Icons.functions_rounded, size: 16, color: MountMapColors.teal), SizedBox(width: 8), Text('Add Total Row')])),
                                             const PopupMenuItem(value: 'move_left', child: Row(children: [Icon(Icons.arrow_back_rounded, size: 16), SizedBox(width: 8), Text('Move Left')])),
                                             const PopupMenuItem(value: 'move_right', child: Row(children: [Icon(Icons.arrow_forward_rounded, size: 16), SizedBox(width: 8), Text('Move Right')])),
@@ -2030,6 +2309,27 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                     });
                                                     return;
                                                   }
+                                                  if (value == 'set_checkbox_done') {
+                                                    setModalState(() {
+                                                      data[rIdx][cIdx] = '[x]';
+                                                      _tableGeneration++;
+                                                    });
+                                                    return;
+                                                  }
+                                                  if (value == 'set_checkbox_todo') {
+                                                    setModalState(() {
+                                                      data[rIdx][cIdx] = '[ ]';
+                                                      _tableGeneration++;
+                                                    });
+                                                    return;
+                                                  }
+                                                  if (value == 'set_rating_stars') {
+                                                    setModalState(() {
+                                                      data[rIdx][cIdx] = '5/5';
+                                                      _tableGeneration++;
+                                                    });
+                                                    return;
+                                                  }
                                                   if (value == 'mask_password') {
                                                     setModalState(() {
                                                       if (data[rIdx][cIdx].contains('•')) {
@@ -2083,6 +2383,39 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                           Icon(Icons.analytics_rounded, size: 16, color: MountMapColors.teal),
                                                           SizedBox(width: 8),
                                                           Text('Quick Avg (Col Above)'),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  if (rIdx != 0)
+                                                    const PopupMenuItem(
+                                                      value: 'set_checkbox_done',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.check_box_rounded, size: 16, color: Colors.greenAccent),
+                                                          SizedBox(width: 8),
+                                                          Text('Set Checkbox [x]'),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  if (rIdx != 0)
+                                                    const PopupMenuItem(
+                                                      value: 'set_checkbox_todo',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.check_box_outline_blank_rounded, size: 16),
+                                                          SizedBox(width: 8),
+                                                          Text('Set Checkbox [ ]'),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  if (rIdx != 0)
+                                                    const PopupMenuItem(
+                                                      value: 'set_rating_stars',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.star_rounded, size: 16, color: Colors.amberAccent),
+                                                          SizedBox(width: 8),
+                                                          Text('Set Rating Stars (5/5)'),
                                                         ],
                                                       ),
                                                     ),
@@ -2653,6 +2986,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
   }
 
   Widget _buildTableBlock(DescriptionBlock block, MountMapProvider provider, NodeModel node, Color textColor) {
+    final tableData = block.tableData ?? [];
     return Column(
       children: [
         Container(
@@ -2668,35 +3002,32 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
             child: Table(
               defaultColumnWidth: const IntrinsicColumnWidth(),
               border: TableBorder.all(color: textColor.withValues(alpha: 0.1), width: 0.5),
-              children: (block.tableData ?? []).map((row) => TableRow(
-                children: row.map((cell) => Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minWidth: 120, maxWidth: 280),
-                    child: InkWell(
-                      onTap: _isTableAttachmentValue(cell) ? () => _openTableCellValue(cell) : null,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              _displayTableCellValue(cell),
-                              softWrap: true,
-                              overflow: TextOverflow.visible,
-                              style: TextStyle(color: textColor, fontSize: 12),
-                            ),
-                          ),
-                          if (_isTableAttachmentValue(cell))
-                            Padding(
-                              padding: const EdgeInsets.only(left: 4),
-                              child: Icon(Icons.open_in_new_rounded, size: 12, color: MountMapColors.teal),
-                            ),
-                        ],
+              children: tableData.asMap().entries.map((rowEntry) {
+                final rIdx = rowEntry.key;
+                return TableRow(
+                  children: rowEntry.value.asMap().entries.map((colEntry) {
+                    final cIdx = colEntry.key;
+                    final cellVal = colEntry.value;
+                    return Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 110, maxWidth: 280),
+                        child: _renderSmartTableCell(
+                          cellVal,
+                          textColor: textColor,
+                          isHeader: rIdx == 0,
+                          onTap: _isTableAttachmentValue(cellVal) ? () => _openTableCellValue(cellVal) : null,
+                          onToggleCheckbox: (newVal) {
+                            final updated = tableData.map((r) => List<String>.from(r)).toList();
+                            updated[rIdx][cIdx] = newVal;
+                            provider.updateDescriptionBlock(node.id, block.id, tableData: updated);
+                          },
+                        ),
                       ),
-                    ),
-                  ),
-                )).toList(),
-              )).toList(),
+                    );
+                  }).toList(),
+                );
+              }).toList(),
             ),
           ),
         ),
