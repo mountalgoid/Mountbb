@@ -914,6 +914,222 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
     }
   }
 
+  void _showAutoFillDialog({
+    required BuildContext context,
+    required MountMapProvider provider,
+    required List<List<String>> data,
+    required Set<String> selectedCells,
+    required int? activeColumn,
+    required int? activeRow,
+    required String selectedMode,
+    required VoidCallback onApplied,
+  }) {
+    String seriesType = 'Numbers'; // 'Numbers', 'Dates', 'Alphabet', 'Preset Labels'
+    String targetRange = selectedMode == 'Column' && activeColumn != null
+        ? 'Col ${activeColumn + 1}'
+        : (selectedMode == 'Row' && activeRow != null ? 'Row ${activeRow + 1}' : 'Selected Cells (${selectedCells.length})');
+
+    double startNum = 1.0;
+    double stepNum = 1.0;
+    DateTime startDate = DateTime.now();
+    String dateStep = 'Daily'; // 'Daily', 'Weekly', 'Monthly', 'Yearly'
+    String presetType = 'Days of Week'; // 'Days of Week', 'Months', 'Quarter', 'Status'
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: provider.cardColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.auto_fix_high_rounded, color: MountMapColors.violet),
+              const SizedBox(width: 8),
+              Text("Auto-Fill & Series Generator", style: TextStyle(color: provider.textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Target Range: $targetRange", style: const TextStyle(color: MountMapColors.teal, fontSize: 11, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: seriesType,
+                  dropdownColor: provider.cardColor,
+                  style: TextStyle(color: provider.textColor, fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: "Series Type",
+                    labelStyle: TextStyle(color: provider.textColor.withValues(alpha: 0.6)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: ['Numbers', 'Dates / Calendar', 'Alphabet', 'Preset Labels']
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) setDialogState(() => seriesType = val);
+                  },
+                ),
+                const SizedBox(height: 12),
+                if (seriesType == 'Numbers') ...[
+                  TextField(
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(color: provider.textColor),
+                    decoration: InputDecoration(
+                      labelText: "Start Number",
+                      hintText: "1",
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onChanged: (v) => startNum = double.tryParse(v) ?? 1.0,
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(color: provider.textColor),
+                    decoration: InputDecoration(
+                      labelText: "Step Increment",
+                      hintText: "1",
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onChanged: (v) => stepNum = double.tryParse(v) ?? 1.0,
+                  ),
+                ] else if (seriesType == 'Dates / Calendar') ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text("Start: ${startDate.toString().split(' ')[0]}", style: TextStyle(color: provider.textColor, fontSize: 12)),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.calendar_month_rounded, size: 16),
+                        label: const Text("Pick Date"),
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: startDate,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null) setDialogState(() => startDate = picked);
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: dateStep,
+                    dropdownColor: provider.cardColor,
+                    style: TextStyle(color: provider.textColor, fontSize: 13),
+                    decoration: InputDecoration(
+                      labelText: "Interval",
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    items: ['Daily', 'Weekly', 'Monthly', 'Yearly']
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => dateStep = val);
+                    },
+                  ),
+                ] else if (seriesType == 'Preset Labels') ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: presetType,
+                    dropdownColor: provider.cardColor,
+                    style: TextStyle(color: provider.textColor, fontSize: 13),
+                    decoration: InputDecoration(
+                      labelText: "Preset Category",
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    items: ['Days of Week', 'Months', 'Quarter (Q1..Q4)', 'Task Status']
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => presetType = val);
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCEL")),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: MountMapColors.violet, foregroundColor: Colors.white),
+              onPressed: () {
+                // Generate values
+                final values = <String>[];
+                int totalNeeded = 50; // max sequence length
+
+                for (int i = 0; i < totalNeeded; i++) {
+                  if (seriesType == 'Numbers') {
+                    final val = startNum + (i * stepNum);
+                    values.add(val % 1 == 0 ? val.toInt().toString() : val.toStringAsFixed(1));
+                  } else if (seriesType == 'Dates / Calendar') {
+                    DateTime dt = startDate;
+                    if (dateStep == 'Daily') dt = startDate.add(Duration(days: i));
+                    if (dateStep == 'Weekly') dt = startDate.add(Duration(days: i * 7));
+                    if (dateStep == 'Monthly') dt = DateTime(startDate.year, startDate.month + i, startDate.day);
+                    if (dateStep == 'Yearly') dt = DateTime(startDate.year + i, startDate.month, startDate.day);
+                    values.add("${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}");
+                  } else if (seriesType == 'Alphabet') {
+                    values.add(String.fromCharCode(65 + (i % 26)));
+                  } else if (seriesType == 'Preset Labels') {
+                    if (presetType == 'Days of Week') {
+                      final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                      values.add(days[i % days.length]);
+                    } else if (presetType == 'Months') {
+                      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      values.add(months[i % months.length]);
+                    } else if (presetType == 'Quarter (Q1..Q4)') {
+                      values.add("Q${(i % 4) + 1}");
+                    } else {
+                      final st = ['Backlog', 'In Progress', 'In Review', 'Completed'];
+                      values.add(st[i % st.length]);
+                    }
+                  }
+                }
+
+                // Apply values based on selectedMode/target
+                int valIdx = 0;
+                if (selectedMode == 'Column' && activeColumn != null) {
+                  for (int r = 1; r < data.length; r++) {
+                    if (activeColumn < data[r].length) {
+                      data[r][activeColumn] = values[valIdx % values.length];
+                      valIdx++;
+                    }
+                  }
+                } else if (selectedMode == 'Row' && activeRow != null && activeRow < data.length) {
+                  for (int c = 0; c < data[activeRow].length; c++) {
+                    data[activeRow][c] = values[valIdx % values.length];
+                    valIdx++;
+                  }
+                } else if (selectedCells.isNotEmpty) {
+                  final sortedKeys = selectedCells.toList()..sort();
+                  for (var key in sortedKeys) {
+                    final parts = key.split('_');
+                    if (parts.length == 2) {
+                      final r = int.tryParse(parts[0]);
+                      final c = int.tryParse(parts[1]);
+                      if (r != null && c != null && r < data.length && c < data[r].length) {
+                        data[r][c] = values[valIdx % values.length];
+                        valIdx++;
+                      }
+                    }
+                  }
+                }
+
+                Navigator.pop(context);
+                onApplied();
+              },
+              child: const Text("GENERATE & APPLY"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showAddLinkForTableCell(
     MountMapProvider provider,
     List<List<String>> data,
@@ -1139,6 +1355,26 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                           icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: MountMapColors.teal),
                           label: const Text("Template", style: TextStyle(color: MountMapColors.teal, fontSize: 12, fontWeight: FontWeight.bold)),
                         ),
+                      TextButton.icon(
+                        onPressed: () {
+                          _showAutoFillDialog(
+                            context: context,
+                            provider: provider,
+                            data: data,
+                            selectedCells: selectedCells,
+                            activeColumn: activeColumn,
+                            activeRow: activeRow,
+                            selectedMode: selectedMode,
+                            onApplied: () {
+                              setModalState(() {
+                                _tableGeneration++;
+                              });
+                            },
+                          );
+                        },
+                        icon: const Icon(Icons.auto_fix_high_rounded, size: 16, color: MountMapColors.violet),
+                        label: const Text("Auto-Fill", style: TextStyle(color: MountMapColors.violet, fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
                         PopupMenuButton<String>(
                           tooltip: 'Table actions',
                           icon: const Icon(Icons.more_vert_rounded, color: MountMapColors.teal),
@@ -2183,7 +2419,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                     ),
                     const SizedBox(width: 6),
                     _chartColorPresetChip(
-                      name: "Teal/Violet",
+                      name: "MountMap Teal",
                       p: MountMapColors.teal,
                       s: MountMapColors.violet,
                       onSelect: () => setState(() {
@@ -2193,22 +2429,32 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                     ),
                     const SizedBox(width: 4),
                     _chartColorPresetChip(
-                      name: "Amber/Red",
-                      p: Colors.amber,
-                      s: Colors.redAccent,
+                      name: "Emerald",
+                      p: Colors.greenAccent,
+                      s: Colors.tealAccent,
                       onSelect: () => setState(() {
-                        chartState['primaryColor'] = Colors.amber;
-                        chartState['secondaryColor'] = Colors.redAccent;
+                        chartState['primaryColor'] = Colors.greenAccent;
+                        chartState['secondaryColor'] = Colors.tealAccent;
                       }),
                     ),
                     const SizedBox(width: 4),
                     _chartColorPresetChip(
-                      name: "Cyan/Blue",
+                      name: "Royal Gold",
+                      p: const Color(0xFFFFD700),
+                      s: const Color(0xFF000080),
+                      onSelect: () => setState(() {
+                        chartState['primaryColor'] = const Color(0xFFFFD700);
+                        chartState['secondaryColor'] = const Color(0xFF000080);
+                      }),
+                    ),
+                    const SizedBox(width: 4),
+                    _chartColorPresetChip(
+                      name: "Cyber Neon",
                       p: Colors.cyanAccent,
-                      s: Colors.blueAccent,
+                      s: Colors.purpleAccent,
                       onSelect: () => setState(() {
                         chartState['primaryColor'] = Colors.cyanAccent;
-                        chartState['secondaryColor'] = Colors.blueAccent;
+                        chartState['secondaryColor'] = Colors.purpleAccent;
                       }),
                     ),
                   ],
