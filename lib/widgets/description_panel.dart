@@ -1138,6 +1138,57 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
         final val = data[r][c].trim();
         if (val.startsWith('=')) {
           final upper = val.toUpperCase();
+
+          // Range Formula: =SUM(A1:B5) or =AVG(A1:A5)
+          final rangeMatch = RegExp(r'^=([A-Z]+)\(([A-Z]+\d+):([A-Z]+\d+)\)$').firstMatch(upper);
+          if (rangeMatch != null) {
+            final func = rangeMatch.group(1);
+            final startCoord = _parseCellCoordinate(rangeMatch.group(2)!);
+            final endCoord = _parseCellCoordinate(rangeMatch.group(3)!);
+
+            if (startCoord != null && endCoord != null) {
+              final nums = _extractRangeNumbers(data, startCoord, endCoord);
+              if (func == 'SUM') {
+                final res = nums.fold(0.0, (a, b) => a + b);
+                data[r][c] = res % 1 == 0 ? res.toInt().toString() : res.toStringAsFixed(2);
+              } else if (func == 'AVG' || func == 'AVERAGE') {
+                final res = nums.isNotEmpty ? nums.fold(0.0, (a, b) => a + b) / nums.length : 0.0;
+                data[r][c] = res % 1 == 0 ? res.toInt().toString() : res.toStringAsFixed(2);
+              } else if (func == 'MIN') {
+                final res = nums.isNotEmpty ? nums.reduce((a, b) => a < b ? a : b) : 0.0;
+                data[r][c] = res % 1 == 0 ? res.toInt().toString() : res.toStringAsFixed(2);
+              } else if (func == 'MAX') {
+                final res = nums.isNotEmpty ? nums.reduce((a, b) => a > b ? a : b) : 0.0;
+                data[r][c] = res % 1 == 0 ? res.toInt().toString() : res.toStringAsFixed(2);
+              } else if (func == 'COUNT') {
+                data[r][c] = nums.length.toString();
+              }
+              continue;
+            }
+          }
+
+          // Simple Arithmetic: =A1+B1, =A1*B1, =A1-B1, =A1/B1
+          final mathMatch = RegExp(r'^=([A-Z]+\d+)([\+\-\*\/])([A-Z]+\d+)$').firstMatch(upper);
+          if (mathMatch != null) {
+            final c1 = _parseCellCoordinate(mathMatch.group(1)!);
+            final op = mathMatch.group(2)!;
+            final c2 = _parseCellCoordinate(mathMatch.group(3)!);
+
+            if (c1 != null && c2 != null) {
+              final v1 = _getCellValueAsDouble(data, c1);
+              final v2 = _getCellValueAsDouble(data, c2);
+              double res = 0.0;
+              if (op == '+') res = v1 + v2;
+              if (op == '-') res = v1 - v2;
+              if (op == '*') res = v1 * v2;
+              if (op == '/') res = v2 != 0 ? v1 / v2 : 0.0;
+
+              data[r][c] = res % 1 == 0 ? res.toInt().toString() : res.toStringAsFixed(2);
+              continue;
+            }
+          }
+
+          // Default column-based fallback
           if (upper.startsWith('=SUM(')) {
             final nums = _extractColumnNumbers(data, c, r);
             final sum = nums.fold(0.0, (a, b) => a + b);
@@ -1161,6 +1212,46 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
         }
       }
     }
+  }
+
+  ({int row, int col})? _parseCellCoordinate(String coord) {
+    final match = RegExp(r'^([A-Z]+)(\d+)$').firstMatch(coord.toUpperCase());
+    if (match == null) return null;
+    final colStr = match.group(1)!;
+    final rowStr = match.group(2)!;
+
+    int col = 0;
+    for (int i = 0; i < colStr.length; i++) {
+      col = col * 26 + (colStr.codeUnitAt(i) - 65);
+    }
+    int row = int.tryParse(rowStr) ?? 1;
+    return (row: row, col: col);
+  }
+
+  double _getCellValueAsDouble(List<List<String>> data, ({int row, int col}) c) {
+    if (c.row < data.length && c.col < data[c.row].length) {
+      return double.tryParse(data[c.row][c.col]) ?? 0.0;
+    }
+    return 0.0;
+  }
+
+  List<double> _extractRangeNumbers(List<List<String>> data, ({int row, int col}) start, ({int row, int col}) end) {
+    final nums = <double>[];
+    int minR = math.min(start.row, end.row);
+    int maxR = math.max(start.row, end.row);
+    int minC = math.min(start.col, end.col);
+    int maxC = math.max(start.col, end.col);
+
+    for (int r = minR; r <= maxR; r++) {
+      if (r >= data.length) continue;
+      for (int c = minC; c <= maxC; c++) {
+        if (c < data[r].length) {
+          final d = double.tryParse(data[r][c]);
+          if (d != null) nums.add(d);
+        }
+      }
+    }
+    return nums;
   }
 
   List<double> _extractColumnNumbers(List<List<String>> data, int colIndex, int untilRow) {
@@ -1809,6 +1900,17 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                   const PopupMenuItem(value: 'move_right', child: Row(children: [Icon(Icons.arrow_forward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Right')])),
                                                   const PopupMenuItem(value: 'move_up', child: Row(children: [Icon(Icons.arrow_upward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Up')])),
                                                   const PopupMenuItem(value: 'move_down', child: Row(children: [Icon(Icons.arrow_downward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Down')])),
+                                                  if (rIdx != 0)
+                                                    const PopupMenuItem(
+                                                      value: 'mask_password',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.lock_rounded, size: 16, color: MountMapColors.violet),
+                                                          SizedBox(width: 8),
+                                                          Text('Mask / Hide Value'),
+                                                        ],
+                                                      ),
+                                                    ),
                                                   if (rIdx != 0)
                                                     const PopupMenuItem(
                                                       value: 'attach_file',
