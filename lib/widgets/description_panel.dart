@@ -957,7 +957,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                 Text("Target Range: $targetRange", style: const TextStyle(color: MountMapColors.teal, fontSize: 11, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: seriesType,
+                  value: seriesType,
                   dropdownColor: provider.cardColor,
                   style: TextStyle(color: provider.textColor, fontSize: 13),
                   decoration: InputDecoration(
@@ -1018,7 +1018,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
-                    initialValue: dateStep,
+                    value: dateStep,
                     dropdownColor: provider.cardColor,
                     style: TextStyle(color: provider.textColor, fontSize: 13),
                     decoration: InputDecoration(
@@ -1034,7 +1034,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                   ),
                 ] else if (seriesType == 'Preset Labels') ...[
                   DropdownButtonFormField<String>(
-                    initialValue: presetType,
+                    value: presetType,
                     dropdownColor: provider.cardColor,
                     style: TextStyle(color: provider.textColor, fontSize: 13),
                     decoration: InputDecoration(
