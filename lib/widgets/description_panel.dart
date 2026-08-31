@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -529,7 +530,6 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
     required Function(DescriptionTemplate) onSelectTemplate,
     required VoidCallback onSelectBlank,
   }) {
-    final isDark = provider.currentTheme == AppThemeMode.dark;
     final categories = <String, List<DescriptionTemplate>>{};
     for (var t in kDescriptionTemplates) {
       categories.putIfAbsent(t.category, () => []).add(t);
@@ -567,7 +567,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                       children: [
                         Text(
                           title,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: MountMapColors.teal,
                             letterSpacing: 2,
                             fontSize: 11,
@@ -1034,410 +1034,611 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
       data[0] = [""];
     }
 
+    // Smart Calculator Selection Set & Mode
+    final Set<String> selectedCells = {};
+    String selectedMode = 'Selection'; // 'Selection', 'Column', 'Row', 'All'
+    int? activeColumn;
+    int? activeRow;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: provider.cardColor,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
       builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          padding: const EdgeInsets.all(24),
-          height: MediaQuery.of(context).size.height * 0.78,
-          child: Column(
-            children: [
-              Container(
-                width: 40, height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(color: provider.textColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2)),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(isChart ? "Chart Data Editor" : "Table Data Editor", style: TextStyle(color: provider.textColor, fontWeight: FontWeight.bold, fontSize: 18)),
-                  Row(
-                    children: [
-                      TextButton.icon(
-                        onPressed: () {
-                          _showTemplatePickerModal(
-                            context: context,
-                            provider: provider,
-                            title: "LOAD TEMPLATE",
-                            onSelectTemplate: (template) {
-                              setModalState(() {
-                                data = template.data.map((r) => List<String>.from(r)).toList();
-                                _tableGeneration++;
-                              });
-                            },
-                            onSelectBlank: () {},
-                          );
-                        },
-                        icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: MountMapColors.teal),
-                        label: const Text("Load Template", style: TextStyle(color: MountMapColors.teal, fontSize: 12, fontWeight: FontWeight.bold)),
-                      ),
-                      PopupMenuButton<String>(
-                        tooltip: 'Table actions',
-                        icon: const Icon(Icons.more_vert_rounded, color: MountMapColors.teal),
-                        onSelected: (value) {
-                          setModalState(() {
-                            if (value == 'add_row') {
-                              data.add(List.generate(data[0].length, (_) => ""));
-                            } else if (value == 'add_column') {
-                              for (var r in data) {
-                                r.add("");
-                              }
-                            } else if (value == 'remove_row') {
-                              if (data.length > 1) {
-                                data.removeLast();
-                              }
-                            } else if (value == 'remove_column') {
-                              if (data.isNotEmpty && data[0].length > 1) {
+        builder: (context, setModalState) {
+          // Helper to extract numbers from selection / mode
+          List<double> getSelectedNumbers() {
+            final nums = <double>[];
+            if (selectedMode == 'All') {
+              for (int r = 1; r < data.length; r++) {
+                for (int c = 0; c < data[r].length; c++) {
+                  final v = double.tryParse(data[r][c]);
+                  if (v != null) nums.add(v);
+                }
+              }
+            } else if (selectedMode == 'Column' && activeColumn != null) {
+              for (int r = 1; r < data.length; r++) {
+                if (activeColumn! < data[r].length) {
+                  final v = double.tryParse(data[r][activeColumn!]);
+                  if (v != null) nums.add(v);
+                }
+              }
+            } else if (selectedMode == 'Row' && activeRow != null && activeRow! < data.length) {
+              for (int c = 0; c < data[activeRow!].length; c++) {
+                final v = double.tryParse(data[activeRow!][c]);
+                if (v != null) nums.add(v);
+              }
+            } else {
+              for (var key in selectedCells) {
+                final parts = key.split('_');
+                if (parts.length == 2) {
+                  final r = int.tryParse(parts[0]);
+                  final c = int.tryParse(parts[1]);
+                  if (r != null && c != null && r < data.length && c < data[r].length) {
+                    final v = double.tryParse(data[r][c]);
+                    if (v != null) nums.add(v);
+                  }
+                }
+              }
+            }
+            return nums;
+          }
+
+          final nums = getSelectedNumbers();
+          final calcSum = nums.isNotEmpty ? nums.reduce((a, b) => a + b) : 0.0;
+          final calcAvg = nums.isNotEmpty ? calcSum / nums.length : 0.0;
+          final calcMin = nums.isNotEmpty ? nums.reduce((a, b) => a < b ? a : b) : 0.0;
+          final calcMax = nums.isNotEmpty ? nums.reduce((a, b) => a > b ? a : b) : 0.0;
+          final calcCount = nums.length;
+
+          // Compute Median & StdDev
+          double calcMed = 0.0;
+          double calcStd = 0.0;
+          if (nums.isNotEmpty) {
+            final sorted = List<double>.from(nums)..sort();
+            final n = sorted.length;
+            calcMed = (n % 2 == 1) ? sorted[n ~/ 2] : (sorted[n ~/ 2 - 1] + sorted[n ~/ 2]) / 2.0;
+            final varSum = nums.fold(0.0, (sum, x) => sum + math.pow(x - calcAvg, 2));
+            calcStd = math.sqrt(varSum / n);
+          }
+
+          return Container(
+            padding: const EdgeInsets.all(20),
+            height: MediaQuery.of(context).size.height * 0.88,
+            child: Column(
+              children: [
+                Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(color: provider.textColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2)),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(isChart ? "Chart Data Editor" : "Table Data Editor", style: TextStyle(color: provider.textColor, fontWeight: FontWeight.bold, fontSize: 18)),
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed: () {
+                            _showTemplatePickerModal(
+                              context: context,
+                              provider: provider,
+                              title: "LOAD TEMPLATE",
+                              onSelectTemplate: (template) {
+                                setModalState(() {
+                                  data = template.data.map((r) => List<String>.from(r)).toList();
+                                  selectedCells.clear();
+                                  selectedMode = 'All';
+                                  _tableGeneration++;
+                                });
+                              },
+                              onSelectBlank: () {},
+                            );
+                          },
+                          icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: MountMapColors.teal),
+                          label: const Text("Template", style: TextStyle(color: MountMapColors.teal, fontSize: 12, fontWeight: FontWeight.bold)),
+                        ),
+                        PopupMenuButton<String>(
+                          tooltip: 'Table actions',
+                          icon: const Icon(Icons.more_vert_rounded, color: MountMapColors.teal),
+                          onSelected: (value) {
+                            setModalState(() {
+                              if (value == 'add_row') {
+                                data.add(List.generate(data[0].length, (_) => ""));
+                              } else if (value == 'add_column') {
                                 for (var r in data) {
-                                  r.removeLast();
+                                  r.add("");
+                                }
+                              } else if (value == 'remove_row') {
+                                if (data.length > 1) {
+                                  data.removeLast();
+                                }
+                              } else if (value == 'remove_column') {
+                                if (data.isNotEmpty && data[0].length > 1) {
+                                  for (var r in data) {
+                                    r.removeLast();
+                                  }
                                 }
                               }
-                            }
-                          });
-                        },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem(
-                            value: 'add_row',
-                            child: Row(
-                              children: [
-                                Icon(Icons.add_rounded, size: 16),
-                                SizedBox(width: 8),
-                                Text('Add Row'),
-                              ],
-                            ),
+                            });
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(value: 'add_row', child: Row(children: [Icon(Icons.add_rounded, size: 16), SizedBox(width: 8), Text('Add Row')])),
+                            PopupMenuItem(value: 'add_column', child: Row(children: [Icon(Icons.view_column_rounded, size: 16), SizedBox(width: 8), Text('Add Column')])),
+                            PopupMenuItem(value: 'remove_row', child: Row(children: [Icon(Icons.remove_rounded, size: 16), SizedBox(width: 8), Text('Remove Row')])),
+                            PopupMenuItem(value: 'remove_column', child: Row(children: [Icon(Icons.view_column_rounded, size: 16), SizedBox(width: 8), Text('Remove Column')])),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 8),
+
+                // SMART CALCULATOR / MATHEMATICS ANALYTICS BAR
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: MountMapColors.teal.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: MountMapColors.teal.withValues(alpha: 0.2)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.functions_rounded, color: MountMapColors.teal, size: 18),
+                              const SizedBox(width: 6),
+                              Text(
+                                "SMART CALCULATOR & ANALYTICS",
+                                style: TextStyle(
+                                  color: provider.textColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ],
                           ),
-                          PopupMenuItem(
-                            value: 'add_column',
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
                             child: Row(
                               children: [
-                                Icon(Icons.view_column_rounded, size: 16),
-                                SizedBox(width: 8),
-                                Text('Add Column'),
-                              ],
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: 'remove_row',
-                            child: Row(
-                              children: [
-                                Icon(Icons.remove_rounded, size: 16),
-                                SizedBox(width: 8),
-                                Text('Remove Row'),
-                              ],
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: 'remove_column',
-                            child: Row(
-                              children: [
-                                Icon(Icons.view_column_rounded, size: 16),
-                                SizedBox(width: 8),
-                                Text('Remove Column'),
+                                _calcModeChip('Sel Sel', selectedMode == 'Selection', () {
+                                  setModalState(() => selectedMode = 'Selection');
+                                }),
+                                const SizedBox(width: 4),
+                                _calcModeChip('Semua Sel', selectedMode == 'All', () {
+                                  setModalState(() => selectedMode = 'All');
+                                }),
                               ],
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 8),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _calcStatBadge("SUM", calcSum.toStringAsFixed(1), Colors.greenAccent),
+                            _calcStatBadge("AVG", calcAvg.toStringAsFixed(1), Colors.cyanAccent),
+                            _calcStatBadge("COUNT", calcCount.toString(), Colors.amberAccent),
+                            _calcStatBadge("MIN", calcMin.toStringAsFixed(1), Colors.orangeAccent),
+                            _calcStatBadge("MAX", calcMax.toStringAsFixed(1), Colors.redAccent),
+                            _calcStatBadge("MEDIAN", calcMed.toStringAsFixed(1), Colors.purpleAccent),
+                            _calcStatBadge("STD DEV", calcStd.toStringAsFixed(1), Colors.blueAccent),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  isChart
-                      ? "Edit data chart langsung di sel atau muat Template. Gunakan menu ⋮ kanan atas untuk add/remove row/column."
-                      : "Gunakan menu ⋮ kanan atas untuk add/remove row/column, atau muat Template. Gunakan menu ⋮ di tiap sel untuk file/link.",
-                  style: TextStyle(color: provider.textColor.withValues(alpha: 0.6), fontSize: 11),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: SingleChildScrollView(
+
+                const SizedBox(height: 8),
+
+                Expanded(
                   child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minWidth: MediaQuery.of(context).size.width - 64,
-                      ),
-                      child: Column(
-                        children: [
-                          // Column Actions Header
-                          Row(
-                            children: [
-                              const SizedBox(width: 40), // Row action column offset
-                              ...List.generate(data[0].length, (cIdx) => SizedBox(
-                                width: isChart ? 170 : 220,
-                                child: Center(
-                                  child: PopupMenuButton<String>(
-                                    padding: EdgeInsets.zero,
-                                    icon: Icon(Icons.more_horiz_rounded, size: 16, color: provider.textColor.withValues(alpha: 0.3)),
-                                    onSelected: (value) {
-                                      setModalState(() {
-                                        _tableGeneration++;
-                                        if (value == 'move_left' && cIdx > 0) {
-                                          for (var r in data) {
-                                            final temp = r[cIdx];
-                                            r[cIdx] = r[cIdx - 1];
-                                            r[cIdx - 1] = temp;
-                                          }
-                                        } else if (value == 'move_right' && cIdx < data[0].length - 1) {
-                                          for (var r in data) {
-                                            final temp = r[cIdx];
-                                            r[cIdx] = r[cIdx + 1];
-                                            r[cIdx + 1] = temp;
-                                          }
-                                        } else if (value == 'duplicate') {
-                                          for (var r in data) {
-                                            r.insert(cIdx + 1, r[cIdx]);
-                                          }
-                                        } else if (value == 'delete' && data[0].length > 1) {
-                                          for (var r in data) {
-                                            r.removeAt(cIdx);
-                                          }
-                                        }
-                                      });
-                                    },
-                                    itemBuilder: (context) => [
-                                      const PopupMenuItem(value: 'move_left', child: Row(children: [Icon(Icons.arrow_back_rounded, size: 16), SizedBox(width: 8), Text('Move Left')])),
-                                      const PopupMenuItem(value: 'move_right', child: Row(children: [Icon(Icons.arrow_forward_rounded, size: 16), SizedBox(width: 8), Text('Move Right')])),
-                                      const PopupMenuItem(value: 'duplicate', child: Row(children: [Icon(Icons.copy_rounded, size: 16), SizedBox(width: 8), Text('Duplicate Column')])),
-                                      const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline_rounded, size: 16, color: Colors.redAccent), SizedBox(width: 8), Text('Delete Column', style: TextStyle(color: Colors.redAccent))])),
-                                    ],
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: MediaQuery.of(context).size.width - 64,
+                        ),
+                        child: Column(
+                          children: [
+                            // Column Actions Header
+                            Row(
+                              children: [
+                                const SizedBox(width: 40), // Row action column offset
+                                ...List.generate(data[0].length, (cIdx) {
+                                  final isColSelected = selectedMode == 'Column' && activeColumn == cIdx;
+                                  return SizedBox(
+                                    width: isChart ? 170 : 220,
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        InkWell(
+                                          onTap: () {
+                                            setModalState(() {
+                                              selectedMode = 'Column';
+                                              activeColumn = cIdx;
+                                            });
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: isColSelected ? MountMapColors.teal : Colors.transparent,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              "COL ${cIdx + 1}",
+                                              style: TextStyle(
+                                                color: isColSelected ? Colors.white : provider.textColor.withValues(alpha: 0.5),
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        PopupMenuButton<String>(
+                                          padding: EdgeInsets.zero,
+                                          icon: Icon(Icons.more_horiz_rounded, size: 16, color: provider.textColor.withValues(alpha: 0.3)),
+                                          onSelected: (value) {
+                                            setModalState(() {
+                                              _tableGeneration++;
+                                              if (value == 'move_left' && cIdx > 0) {
+                                                for (var r in data) {
+                                                  final temp = r[cIdx];
+                                                  r[cIdx] = r[cIdx - 1];
+                                                  r[cIdx - 1] = temp;
+                                                }
+                                              } else if (value == 'move_right' && cIdx < data[0].length - 1) {
+                                                for (var r in data) {
+                                                  final temp = r[cIdx];
+                                                  r[cIdx] = r[cIdx + 1];
+                                                  r[cIdx + 1] = temp;
+                                                }
+                                              } else if (value == 'duplicate') {
+                                                for (var r in data) {
+                                                  r.insert(cIdx + 1, r[cIdx]);
+                                                }
+                                              } else if (value == 'delete' && data[0].length > 1) {
+                                                for (var r in data) {
+                                                  r.removeAt(cIdx);
+                                                }
+                                              } else if (value == 'sum_column') {
+                                                double s = 0;
+                                                for (int r = 1; r < data.length; r++) {
+                                                  s += double.tryParse(data[r][cIdx]) ?? 0;
+                                                }
+                                                data.add(List.generate(data[0].length, (index) => index == 0 ? "TOTAL COL ${cIdx + 1}" : (index == cIdx ? s.toStringAsFixed(1) : "-")));
+                                              }
+                                            });
+                                          },
+                                          itemBuilder: (context) => [
+                                            const PopupMenuItem(value: 'sum_column', child: Row(children: [Icon(Icons.functions_rounded, size: 16, color: MountMapColors.teal), SizedBox(width: 8), Text('Add Total Row')])),
+                                            const PopupMenuItem(value: 'move_left', child: Row(children: [Icon(Icons.arrow_back_rounded, size: 16), SizedBox(width: 8), Text('Move Left')])),
+                                            const PopupMenuItem(value: 'move_right', child: Row(children: [Icon(Icons.arrow_forward_rounded, size: 16), SizedBox(width: 8), Text('Move Right')])),
+                                            const PopupMenuItem(value: 'duplicate', child: Row(children: [Icon(Icons.copy_rounded, size: 16), SizedBox(width: 8), Text('Duplicate Column')])),
+                                            const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline_rounded, size: 16, color: Colors.redAccent), SizedBox(width: 8), Text('Delete Column', style: TextStyle(color: Colors.redAccent))])),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                            ...data.asMap().entries.map((rowEntry) {
+                              final int rIdx = rowEntry.key;
+                              final isRowSelected = selectedMode == 'Row' && activeRow == rIdx;
+
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: rIdx == 0
+                                      ? MountMapColors.teal.withValues(alpha: 0.1)
+                                      : (isRowSelected ? MountMapColors.teal.withValues(alpha: 0.15) : null),
+                                  border: Border(
+                                    left: BorderSide(color: provider.textColor.withValues(alpha: 0.1)),
+                                    right: BorderSide(color: provider.textColor.withValues(alpha: 0.1)),
+                                    top: BorderSide(color: provider.textColor.withValues(alpha: 0.1)),
+                                    bottom: BorderSide(color: provider.textColor.withValues(alpha: 0.1)),
                                   ),
                                 ),
-                              )),
-                            ],
-                          ),
-                          ...data.asMap().entries.map((rowEntry) {
-                            final int rIdx = rowEntry.key;
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: rIdx == 0 ? MountMapColors.teal.withValues(alpha: 0.1) : null,
-                                border: Border(
-                                  left: BorderSide(color: provider.textColor.withValues(alpha: 0.1)),
-                                  right: BorderSide(color: provider.textColor.withValues(alpha: 0.1)),
-                                  top: BorderSide(color: provider.textColor.withValues(alpha: 0.1)),
-                                  bottom: BorderSide(color: provider.textColor.withValues(alpha: 0.1)),
-                                ),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Row Actions
-                                  SizedBox(
-                                    width: 40,
-                                    child: Center(
-                                      child: PopupMenuButton<String>(
-                                        padding: EdgeInsets.zero,
-                                        icon: Icon(Icons.more_vert_rounded, size: 16, color: provider.textColor.withValues(alpha: 0.3)),
-                                        onSelected: (value) {
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Row Actions & Row Selector
+                                    SizedBox(
+                                      width: 40,
+                                      child: Center(
+                                        child: InkWell(
+                                          onTap: rIdx == 0 ? null : () {
+                                            setModalState(() {
+                                              selectedMode = 'Row';
+                                              activeRow = rIdx;
+                                            });
+                                          },
+                                          child: PopupMenuButton<String>(
+                                            padding: EdgeInsets.zero,
+                                            icon: Icon(Icons.more_vert_rounded, size: 16, color: isRowSelected ? MountMapColors.teal : provider.textColor.withValues(alpha: 0.3)),
+                                            onSelected: (value) {
+                                              setModalState(() {
+                                                _tableGeneration++;
+                                                if (value == 'move_up' && rIdx > 0) {
+                                                  final temp = data[rIdx];
+                                                  data[rIdx] = data[rIdx - 1];
+                                                  data[rIdx - 1] = temp;
+                                                } else if (value == 'move_down' && rIdx < data.length - 1) {
+                                                  final temp = data[rIdx];
+                                                  data[rIdx] = data[rIdx + 1];
+                                                  data[rIdx + 1] = temp;
+                                                } else if (value == 'duplicate') {
+                                                  data.insert(rIdx + 1, List<String>.from(data[rIdx]));
+                                                } else if (value == 'delete' && data.length > 1) {
+                                                  data.removeAt(rIdx);
+                                                } else if (value == 'sum_row') {
+                                                  double s = 0;
+                                                  for (int c = 1; c < data[rIdx].length; c++) {
+                                                    s += double.tryParse(data[rIdx][c]) ?? 0;
+                                                  }
+                                                  data[rIdx].add(s.toStringAsFixed(1));
+                                                  if (rIdx == 0) data[0][data[0].length - 1] = "TOTAL ROW";
+                                                }
+                                              });
+                                            },
+                                            itemBuilder: (context) => [
+                                              const PopupMenuItem(value: 'sum_row', child: Row(children: [Icon(Icons.functions_rounded, size: 16, color: MountMapColors.teal), SizedBox(width: 8), Text('Add Row Sum Col')])),
+                                              const PopupMenuItem(value: 'move_up', child: Row(children: [Icon(Icons.arrow_upward_rounded, size: 16), SizedBox(width: 8), Text('Move Up')])),
+                                              const PopupMenuItem(value: 'move_down', child: Row(children: [Icon(Icons.arrow_downward_rounded, size: 16), SizedBox(width: 8), Text('Move Down')])),
+                                              const PopupMenuItem(value: 'duplicate', child: Row(children: [Icon(Icons.copy_rounded, size: 16), SizedBox(width: 8), Text('Duplicate Row')])),
+                                              const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline_rounded, size: 16, color: Colors.redAccent), SizedBox(width: 8), Text('Delete Row', style: TextStyle(color: Colors.redAccent))])),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    ...rowEntry.value.asMap().entries.map((colEntry) {
+                                      final int cIdx = colEntry.key;
+                                      final cellKey = "${rIdx}_${cIdx}";
+                                      final isCellSelected = selectedCells.contains(cellKey);
+                                      final bool isAttachmentCell = !isChart && _isTableAttachmentValue(colEntry.value);
+                                      final String displayValue = isChart ? colEntry.value : _displayTableCellValue(colEntry.value);
+
+                                      return InkWell(
+                                        onTap: () {
                                           setModalState(() {
-                                            _tableGeneration++;
-                                            if (value == 'move_up' && rIdx > 0) {
-                                              final temp = data[rIdx];
-                                              data[rIdx] = data[rIdx - 1];
-                                              data[rIdx - 1] = temp;
-                                            } else if (value == 'move_down' && rIdx < data.length - 1) {
-                                              final temp = data[rIdx];
-                                              data[rIdx] = data[rIdx + 1];
-                                              data[rIdx + 1] = temp;
-                                            } else if (value == 'duplicate') {
-                                              data.insert(rIdx + 1, List<String>.from(data[rIdx]));
-                                            } else if (value == 'delete' && data.length > 1) {
-                                              data.removeAt(rIdx);
+                                            if (selectedMode != 'Selection') {
+                                              selectedMode = 'Selection';
+                                              selectedCells.clear();
+                                            }
+                                            if (selectedCells.contains(cellKey)) {
+                                              selectedCells.remove(cellKey);
+                                            } else {
+                                              selectedCells.add(cellKey);
                                             }
                                           });
                                         },
-                                        itemBuilder: (context) => [
-                                          const PopupMenuItem(value: 'move_up', child: Row(children: [Icon(Icons.arrow_upward_rounded, size: 16), SizedBox(width: 8), Text('Move Up')])),
-                                          const PopupMenuItem(value: 'move_down', child: Row(children: [Icon(Icons.arrow_downward_rounded, size: 16), SizedBox(width: 8), Text('Move Down')])),
-                                          const PopupMenuItem(value: 'duplicate', child: Row(children: [Icon(Icons.copy_rounded, size: 16), SizedBox(width: 8), Text('Duplicate Row')])),
-                                          const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline_rounded, size: 16, color: Colors.redAccent), SizedBox(width: 8), Text('Delete Row', style: TextStyle(color: Colors.redAccent))])),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  ...rowEntry.value.asMap().entries.map((colEntry) {
-                                    final int cIdx = colEntry.key;
-                                    final bool isAttachmentCell = !isChart && _isTableAttachmentValue(colEntry.value);
-                                    final String displayValue = isChart ? colEntry.value : _displayTableCellValue(colEntry.value);
-
-                                    return Container(
-                                      width: isChart ? 170 : 220,
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          right: BorderSide(color: provider.textColor.withValues(alpha: 0.08)),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                            child: TextFormField(
-                                              key: ValueKey('cell_${rIdx}_${cIdx}_$_tableGeneration'),
-                                              initialValue: displayValue,
-                                              readOnly: isAttachmentCell,
-                                              style: TextStyle(
-                                                color: provider.textColor,
-                                                fontSize: 13,
-                                                fontWeight: rIdx == 0 ? FontWeight.bold : FontWeight.normal,
-                                              ),
-                                              minLines: 1,
-                                              maxLines: null,
-                                              decoration: const InputDecoration(
-                                                border: InputBorder.none,
-                                                isDense: true,
-                                                contentPadding: EdgeInsets.zero,
-                                              ),
-                                              onChanged: (val) => data[rIdx][cIdx] = val,
+                                        child: Container(
+                                          width: isChart ? 170 : 220,
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: isCellSelected ? MountMapColors.teal.withValues(alpha: 0.25) : Colors.transparent,
+                                            border: Border(
+                                              right: BorderSide(color: provider.textColor.withValues(alpha: 0.08)),
                                             ),
                                           ),
-                                          PopupMenuButton<String>(
-                                            icon: Icon(Icons.more_vert_rounded, size: 16, color: provider.textColor.withValues(alpha: 0.65)),
-                                            tooltip: 'Cell actions',
-                                            onSelected: (value) async {
-                                              if (value == 'move_left' && cIdx > 0) {
-                                                setModalState(() {
-                                                  _tableGeneration++;
-                                                  final temp = data[rIdx][cIdx];
-                                                  data[rIdx][cIdx] = data[rIdx][cIdx - 1];
-                                                  data[rIdx][cIdx - 1] = temp;
-                                                });
-                                                return;
-                                              }
-                                              if (value == 'move_right' && cIdx < data[rIdx].length - 1) {
-                                                setModalState(() {
-                                                  _tableGeneration++;
-                                                  final temp = data[rIdx][cIdx];
-                                                  data[rIdx][cIdx] = data[rIdx][cIdx + 1];
-                                                  data[rIdx][cIdx + 1] = temp;
-                                                });
-                                                return;
-                                              }
-                                              if (value == 'move_up' && rIdx > 0) {
-                                                setModalState(() {
-                                                  _tableGeneration++;
-                                                  final temp = data[rIdx][cIdx];
-                                                  data[rIdx][cIdx] = data[rIdx - 1][cIdx];
-                                                  data[rIdx - 1][cIdx] = temp;
-                                                });
-                                                return;
-                                              }
-                                              if (value == 'move_down' && rIdx < data.length - 1) {
-                                                setModalState(() {
-                                                  _tableGeneration++;
-                                                  final temp = data[rIdx][cIdx];
-                                                  data[rIdx][cIdx] = data[rIdx + 1][cIdx];
-                                                  data[rIdx + 1][cIdx] = temp;
-                                                });
-                                                return;
-                                              }
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Expanded(
+                                                child: TextFormField(
+                                                  key: ValueKey('cell_${rIdx}_${cIdx}_$_tableGeneration'),
+                                                  initialValue: displayValue,
+                                                  readOnly: isAttachmentCell,
+                                                  style: TextStyle(
+                                                    color: provider.textColor,
+                                                    fontSize: 13,
+                                                    fontWeight: rIdx == 0 ? FontWeight.bold : FontWeight.normal,
+                                                  ),
+                                                  minLines: 1,
+                                                  maxLines: null,
+                                                  decoration: const InputDecoration(
+                                                    border: InputBorder.none,
+                                                    isDense: true,
+                                                    contentPadding: EdgeInsets.zero,
+                                                  ),
+                                                  onChanged: (val) => data[rIdx][cIdx] = val,
+                                                ),
+                                              ),
+                                              PopupMenuButton<String>(
+                                                icon: Icon(Icons.more_vert_rounded, size: 16, color: provider.textColor.withValues(alpha: 0.65)),
+                                                tooltip: 'Cell actions',
+                                                onSelected: (value) async {
+                                                  if (value == 'move_left' && cIdx > 0) {
+                                                    setModalState(() {
+                                                      _tableGeneration++;
+                                                      final temp = data[rIdx][cIdx];
+                                                      data[rIdx][cIdx] = data[rIdx][cIdx - 1];
+                                                      data[rIdx][cIdx - 1] = temp;
+                                                    });
+                                                    return;
+                                                  }
+                                                  if (value == 'move_right' && cIdx < data[rIdx].length - 1) {
+                                                    setModalState(() {
+                                                      _tableGeneration++;
+                                                      final temp = data[rIdx][cIdx];
+                                                      data[rIdx][cIdx] = data[rIdx][cIdx + 1];
+                                                      data[rIdx][cIdx + 1] = temp;
+                                                    });
+                                                    return;
+                                                  }
+                                                  if (value == 'move_up' && rIdx > 0) {
+                                                    setModalState(() {
+                                                      _tableGeneration++;
+                                                      final temp = data[rIdx][cIdx];
+                                                      data[rIdx][cIdx] = data[rIdx - 1][cIdx];
+                                                      data[rIdx - 1][cIdx] = temp;
+                                                    });
+                                                    return;
+                                                  }
+                                                  if (value == 'move_down' && rIdx < data.length - 1) {
+                                                    setModalState(() {
+                                                      _tableGeneration++;
+                                                      final temp = data[rIdx][cIdx];
+                                                      data[rIdx][cIdx] = data[rIdx + 1][cIdx];
+                                                      data[rIdx + 1][cIdx] = temp;
+                                                    });
+                                                    return;
+                                                  }
 
-                                              if (value == 'attach_file') {
-                                                await _pickFileForTableCell(provider, data, rIdx, cIdx, setModalState);
-                                                return;
-                                              }
-                                              if (value == 'attach_link') {
-                                                _showAddLinkForTableCell(provider, data, rIdx, cIdx, setModalState);
-                                                return;
-                                              }
-                                              if (value == 'open' && isAttachmentCell) {
-                                                await _openTableCellValue(colEntry.value);
-                                                return;
-                                              }
-                                              if (value == 'clear_attachment' && isAttachmentCell) {
-                                                setModalState(() {
-                                                  data[rIdx][cIdx] = '';
-                                                });
-                                              }
-                                            },
-                                            itemBuilder: (context) => [
-                                              const PopupMenuItem(value: 'move_left', child: Row(children: [Icon(Icons.arrow_back_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Left')])),
-                                              const PopupMenuItem(value: 'move_right', child: Row(children: [Icon(Icons.arrow_forward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Right')])),
-                                              const PopupMenuItem(value: 'move_up', child: Row(children: [Icon(Icons.arrow_upward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Up')])),
-                                              const PopupMenuItem(value: 'move_down', child: Row(children: [Icon(Icons.arrow_downward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Down')])),
-                                              if (!isChart && rIdx != 0)
-                                                const PopupMenuItem(
-                                                  value: 'attach_file',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(Icons.attach_file_rounded, size: 16),
-                                                      SizedBox(width: 8),
-                                                      Text('Attach File'),
-                                                    ],
-                                                  ),
-                                                ),
-                                              if (!isChart && rIdx != 0)
-                                                const PopupMenuItem(
-                                                  value: 'attach_link',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(Icons.link_rounded, size: 16),
-                                                      SizedBox(width: 8),
-                                                      Text('Attach Link'),
-                                                    ],
-                                                  ),
-                                                ),
-                                              if (!isChart && rIdx != 0 && isAttachmentCell)
-                                                const PopupMenuItem(
-                                                  value: 'open',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(Icons.open_in_new_rounded, size: 16),
-                                                      SizedBox(width: 8),
-                                                      Text('Open Attachment'),
-                                                    ],
-                                                  ),
-                                                ),
-                                              if (!isChart && rIdx != 0 && isAttachmentCell)
-                                                const PopupMenuItem(
-                                                  value: 'clear_attachment',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(Icons.clear_rounded, size: 16),
-                                                      SizedBox(width: 8),
-                                                      Text('Clear Attachment'),
-                                                    ],
-                                                  ),
-                                                ),
+                                                  if (value == 'attach_file') {
+                                                    await _pickFileForTableCell(provider, data, rIdx, cIdx, setModalState);
+                                                    return;
+                                                  }
+                                                  if (value == 'attach_link') {
+                                                    _showAddLinkForTableCell(provider, data, rIdx, cIdx, setModalState);
+                                                    return;
+                                                  }
+                                                  if (value == 'open' && isAttachmentCell) {
+                                                    await _openTableCellValue(colEntry.value);
+                                                    return;
+                                                  }
+                                                  if (value == 'clear_attachment' && isAttachmentCell) {
+                                                    setModalState(() {
+                                                      data[rIdx][cIdx] = '';
+                                                    });
+                                                  }
+                                                },
+                                                itemBuilder: (context) => [
+                                                  const PopupMenuItem(value: 'move_left', child: Row(children: [Icon(Icons.arrow_back_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Left')])),
+                                                  const PopupMenuItem(value: 'move_right', child: Row(children: [Icon(Icons.arrow_forward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Right')])),
+                                                  const PopupMenuItem(value: 'move_up', child: Row(children: [Icon(Icons.arrow_upward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Up')])),
+                                                  const PopupMenuItem(value: 'move_down', child: Row(children: [Icon(Icons.arrow_downward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Down')])),
+                                                  if (!isChart && rIdx != 0)
+                                                    const PopupMenuItem(
+                                                      value: 'attach_file',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.attach_file_rounded, size: 16),
+                                                          SizedBox(width: 8),
+                                                          Text('Attach File'),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  if (!isChart && rIdx != 0)
+                                                    const PopupMenuItem(
+                                                      value: 'attach_link',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.link_rounded, size: 16),
+                                                          SizedBox(width: 8),
+                                                          Text('Attach Link'),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  if (!isChart && rIdx != 0 && isAttachmentCell)
+                                                    const PopupMenuItem(
+                                                      value: 'open',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.open_in_new_rounded, size: 16),
+                                                          SizedBox(width: 8),
+                                                          Text('Open Attachment'),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  if (!isChart && rIdx != 0 && isAttachmentCell)
+                                                    const PopupMenuItem(
+                                                      value: 'clear_attachment',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.clear_rounded, size: 16),
+                                                          SizedBox(width: 8),
+                                                          Text('Clear Attachment'),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
                                             ],
                                           ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                            ],
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: MountMapColors.teal, foregroundColor: Colors.white),
-                  onPressed: () {
-                    provider.updateDescriptionBlock(nodeId, blockId, tableData: data);
-                    Navigator.pop(context);
-                  },
-                  child: const Text("SAVE CHANGES"),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: MountMapColors.teal, foregroundColor: Colors.white),
+                    onPressed: () {
+                      provider.updateDescriptionBlock(nodeId, blockId, tableData: data);
+                      Navigator.pop(context);
+                    },
+                    child: const Text("SAVE CHANGES"),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-            ],
+                const SizedBox(height: 10),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _calcModeChip(String label, bool isSelected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? MountMapColors.teal : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.white70,
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _calcStatBadge(String label, String val, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text("$label: ", style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w900)),
+          Text(val, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }
