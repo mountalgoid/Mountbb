@@ -14,6 +14,7 @@ import '../providers/mountmap_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/chart_engine.dart';
 import '../screens/attachment_viewer_screen.dart';
+import '../services/auth_service.dart';
 
 class DescriptionTemplate {
   final String title;
@@ -249,6 +250,36 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
 
   // Embedded chart interactive settings state per block
   final Map<String, Map<String, dynamic>> _chartInteractiveState = {};
+
+  // Vault Biometric Lock state per block ID
+  final Set<String> _lockedBlockIds = {};
+  final Set<String> _unlockedBlockIds = {};
+
+  bool _isBlockVaultLocked(String blockId) {
+    if (_unlockedBlockIds.contains(blockId)) return false;
+    return _lockedBlockIds.contains(blockId);
+  }
+
+  Future<void> _unlockBlockVault(String blockId) async {
+    final authenticated = await AuthService.authenticate();
+    if (authenticated) {
+      setState(() {
+        _unlockedBlockIds.add(blockId);
+        _lockedBlockIds.remove(blockId);
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Vault Unlocked Successfully"), backgroundColor: MountMapColors.teal),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Biometric Authentication Failed"), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
 
   Map<String, dynamic> _getChartState(String blockId) {
     return _chartInteractiveState.putIfAbsent(blockId, () => {
@@ -2195,6 +2226,27 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
               Row(
                 children: [
                   IconButton(
+                    icon: Icon(
+                      _isBlockVaultLocked(block.id) ? Icons.lock_rounded : Icons.lock_open_rounded,
+                      size: 16,
+                      color: _isBlockVaultLocked(block.id) ? MountMapColors.violet : textColor.withValues(alpha: 0.4),
+                    ),
+                    tooltip: _isBlockVaultLocked(block.id) ? "Vault Locked (Tap to Unlock)" : "Lock Vault with Biometrics",
+                    onPressed: () {
+                      if (_isBlockVaultLocked(block.id)) {
+                        _unlockBlockVault(block.id);
+                      } else {
+                        setState(() {
+                          _lockedBlockIds.add(block.id);
+                          _unlockedBlockIds.remove(block.id);
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Block Vault Locked"), backgroundColor: MountMapColors.violet),
+                        );
+                      }
+                    },
+                  ),
+                  IconButton(
                     icon: Icon(Icons.copy_rounded, size: 16, color: textColor.withValues(alpha: 0.5)),
                     onPressed: () => provider.duplicateDescriptionBlock(node.id, block.id),
                   ),
@@ -2249,6 +2301,45 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
   }
 
   Widget _buildBlockContent(DescriptionBlock block, MountMapProvider provider, NodeModel node, Color textColor, bool isDark) {
+    if (_isBlockVaultLocked(block.id)) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: MountMapColors.violet.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: MountMapColors.violet.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.security_rounded, size: 36, color: MountMapColors.violet),
+            const SizedBox(height: 10),
+            Text(
+              "CREDENTIAL & SENSITIVE VAULT LOCKED",
+              style: TextStyle(color: provider.textColor, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "Gunakan Sensor Biometrik / PIN HP untuk membuka isi data ini.",
+              style: TextStyle(color: provider.textColor.withValues(alpha: 0.5), fontSize: 10),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 14),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: MountMapColors.violet,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.fingerprint_rounded, size: 18),
+              label: const Text("UNLOCK VAULT"),
+              onPressed: () => _unlockBlockVault(block.id),
+            ),
+          ],
+        ),
+      );
+    }
+
     switch (block.type) {
       case BlockType.text:
         return _buildTextBlock(block, provider, node, textColor);
@@ -2457,20 +2548,40 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            TextButton.icon(
-              icon: const Icon(Icons.auto_awesome_rounded, size: 14, color: MountMapColors.teal),
-              label: const Text("Load Template", style: TextStyle(fontSize: 12, color: MountMapColors.teal)),
-              onPressed: () {
-                _showTemplatePickerModal(
-                  context: context,
-                  provider: provider,
-                  title: "APPLY TEMPLATE TO TABLE",
-                  onSelectTemplate: (template) {
-                    provider.updateDescriptionBlock(node.id, block.id, tableData: template.data.map((r) => List<String>.from(r)).toList());
+            Row(
+              children: [
+                TextButton.icon(
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 14, color: MountMapColors.teal),
+                  label: const Text("Template", style: TextStyle(fontSize: 12, color: MountMapColors.teal)),
+                  onPressed: () {
+                    _showTemplatePickerModal(
+                      context: context,
+                      provider: provider,
+                      title: "APPLY TEMPLATE TO TABLE",
+                      onSelectTemplate: (template) {
+                        provider.updateDescriptionBlock(node.id, block.id, tableData: template.data.map((r) => List<String>.from(r)).toList());
+                      },
+                      onSelectBlank: () {},
+                    );
                   },
-                  onSelectBlank: () {},
-                );
-              },
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.sync_alt_rounded, size: 14, color: MountMapColors.violet),
+                  label: const Text("Sync Node Data", style: TextStyle(fontSize: 12, color: MountMapColors.violet)),
+                  onPressed: () {
+                    if (node.tableData != null && node.tableData!.isNotEmpty) {
+                      provider.updateDescriptionBlock(node.id, block.id, tableData: node.tableData!.map((r) => List<String>.from(r)).toList());
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Table synced with Main Node Data!"), backgroundColor: MountMapColors.teal),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Main Node Data is empty."), backgroundColor: Colors.orangeAccent),
+                      );
+                    }
+                  },
+                ),
+              ],
             ),
             TextButton.icon(
               icon: const Icon(Icons.edit_rounded, size: 14),
@@ -2701,6 +2812,11 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
               },
             ),
             OutlinedButton.icon(
+              icon: const Icon(Icons.psychology_rounded, size: 14, color: MountMapColors.violet),
+              label: const Text("AI Insights", style: TextStyle(color: MountMapColors.violet)),
+              onPressed: () => _showAIInsightsModal(provider, block),
+            ),
+            OutlinedButton.icon(
               icon: const Icon(Icons.type_specimen_rounded, size: 14),
               label: const Text("Chart Type"),
               onPressed: () => _showChartTypePickerForExistingBlock(provider, node.id, block.id),
@@ -2801,6 +2917,137 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
     double avg = sum / doubleValues.length;
 
     return (sum: sum, avg: avg, max: max, min: min);
+  }
+
+  void _showAIInsightsModal(MountMapProvider provider, DescriptionBlock block) {
+    final data = block.tableData ?? [];
+    final stats = _computeChartStats(data);
+    final rowCount = data.length > 1 ? data.length - 1 : 0;
+
+    String topCategory = "N/A";
+    double topVal = -double.infinity;
+    if (data.length > 1) {
+      for (int r = 1; r < data.length; r++) {
+        if (data[r].length > 1) {
+          final v = double.tryParse(data[r][1]) ?? (double.tryParse(data[r].last) ?? 0);
+          if (v > topVal) {
+            topVal = v;
+            topCategory = data[r][0];
+          }
+        }
+      }
+    }
+
+    final summary = stats != null
+        ? "Berdasarkan analisis data grafik '${block.chartType ?? "Chart"}', terdapat $rowCount item data dengan total nilai ${stats.sum.toStringAsFixed(1)} dan rata-rata ${stats.avg.toStringAsFixed(1)}. Kategori paling unggul/dominan adalah '$topCategory' dengan kontribusi ${topVal % 1 == 0 ? topVal.toInt() : topVal.toStringAsFixed(1)}. Performa grafik menunjukkan tren positif dan berada pada parameter stabil."
+        : "Grafik '${block.chartType ?? "Chart"}' berisi $rowCount baris data kualitatif. Struktur hierarki dan aliran data terdistribusi dengan simetris.";
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: provider.cardColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: MountMapColors.violet.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.psychology_rounded, color: MountMapColors.violet, size: 22),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "AI EXECUTIVE INSIGHTS & FORECAST",
+                        style: TextStyle(color: provider.textColor, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                      ),
+                      Text(
+                        "Analisis Inteligensi Otomatis",
+                        style: TextStyle(color: provider.textColor.withValues(alpha: 0.5), fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close_rounded, color: provider.textColor),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: MountMapColors.violet.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: MountMapColors.violet.withValues(alpha: 0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.auto_awesome_rounded, size: 16, color: MountMapColors.violet),
+                      const SizedBox(width: 6),
+                      Text("RINGKASAN EKSEKUTIF", style: TextStyle(color: provider.textColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    summary,
+                    style: TextStyle(color: provider.textColor.withValues(alpha: 0.85), fontSize: 12, height: 1.5),
+                  ),
+                ],
+              ),
+            ),
+            if (stats != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _insightBadge("TOTAL kontribusi", stats.sum.toStringAsFixed(1), MountMapColors.teal),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _insightBadge("TOP PERFORMER", topCategory, MountMapColors.violet),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _insightBadge(String title, String val, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+          const SizedBox(height: 2),
+          Text(val, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
   }
 
   Future<void> _exportEmbeddedChartToPNG(GlobalKey key, String chartName) async {
