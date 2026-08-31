@@ -1416,8 +1416,9 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
       data[0] = [""];
     }
 
-    // Smart Calculator Selection Set & Mode
+    // Smart Calculator Selection Set & Mode & Editing state
     final Set<String> selectedCells = {};
+    String? editingCellKey;
     String selectedMode = 'Selection'; // 'Selection', 'Column', 'Row', 'All'
     int? activeColumn;
     int? activeRow;
@@ -1821,6 +1822,8 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                       final bool isAttachmentCell = _isTableAttachmentValue(colEntry.value);
                                       final String displayValue = _displayTableCellValue(colEntry.value);
 
+                                      final isEditingCell = editingCellKey == cellKey;
+
                                       return InkWell(
                                         onTap: () {
                                           setModalState(() {
@@ -1833,6 +1836,15 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                             } else {
                                               selectedCells.add(cellKey);
                                             }
+                                            if (editingCellKey != cellKey) {
+                                              editingCellKey = null;
+                                            }
+                                          });
+                                        },
+                                        onDoubleTap: () {
+                                          setModalState(() {
+                                            editingCellKey = cellKey;
+                                            selectedCells.add(cellKey);
                                           });
                                         },
                                         child: Container(
@@ -1841,31 +1853,43 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                           decoration: BoxDecoration(
                                             color: isCellSelected ? MountMapColors.teal.withValues(alpha: 0.25) : Colors.transparent,
                                             border: Border(
-                                              right: BorderSide(color: provider.textColor.withValues(alpha: 0.08)),
+                                              right: BorderSide(color: isEditingCell ? MountMapColors.teal : provider.textColor.withValues(alpha: 0.08)),
                                             ),
                                           ),
                                           child: Row(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Expanded(
-                                                child: TextFormField(
-                                                  key: ValueKey('cell_${rIdx}_${cIdx}_$_tableGeneration'),
-                                                  initialValue: displayValue,
-                                                  readOnly: isAttachmentCell,
-                                                  style: TextStyle(
-                                                    color: provider.textColor,
-                                                    fontSize: 13,
-                                                    fontWeight: rIdx == 0 ? FontWeight.bold : FontWeight.normal,
-                                                  ),
-                                                  minLines: 1,
-                                                  maxLines: null,
-                                                  decoration: const InputDecoration(
-                                                    border: InputBorder.none,
-                                                    isDense: true,
-                                                    contentPadding: EdgeInsets.zero,
-                                                  ),
-                                                  onChanged: (val) => data[rIdx][cIdx] = val,
-                                                ),
+                                                child: isEditingCell
+                                                    ? TextFormField(
+                                                        key: ValueKey('cell_edit_${rIdx}_${cIdx}_$_tableGeneration'),
+                                                        initialValue: displayValue,
+                                                        autofocus: true,
+                                                        readOnly: isAttachmentCell,
+                                                        style: TextStyle(
+                                                          color: provider.textColor,
+                                                          fontSize: 13,
+                                                          fontWeight: rIdx == 0 ? FontWeight.bold : FontWeight.normal,
+                                                        ),
+                                                        minLines: 1,
+                                                        maxLines: null,
+                                                        decoration: const InputDecoration(
+                                                          border: InputBorder.none,
+                                                          isDense: true,
+                                                          contentPadding: EdgeInsets.zero,
+                                                        ),
+                                                        onChanged: (val) => data[rIdx][cIdx] = val,
+                                                      )
+                                                    : Text(
+                                                        displayValue.isEmpty ? "-" : displayValue,
+                                                        style: TextStyle(
+                                                          color: isAttachmentCell
+                                                              ? MountMapColors.teal
+                                                              : (displayValue.isEmpty ? provider.textColor.withValues(alpha: 0.3) : provider.textColor),
+                                                          fontSize: 13,
+                                                          fontWeight: rIdx == 0 ? FontWeight.bold : FontWeight.normal,
+                                                        ),
+                                                      ),
                                               ),
                                               PopupMenuButton<String>(
                                                 icon: Icon(Icons.more_vert_rounded, size: 16, color: provider.textColor.withValues(alpha: 0.65)),
@@ -1942,6 +1966,17 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                       final nums = _extractColumnNumbers(data, cIdx, rIdx);
                                                       final min = nums.isNotEmpty ? nums.reduce((a, b) => a < b ? a : b) : 0.0;
                                                       data[rIdx][cIdx] = min % 1 == 0 ? min.toInt().toString() : min.toStringAsFixed(2);
+                                                      _tableGeneration++;
+                                                    });
+                                                    return;
+                                                  }
+                                                  if (value == 'mask_password') {
+                                                    setModalState(() {
+                                                      if (data[rIdx][cIdx].contains('•')) {
+                                                        data[rIdx][cIdx] = 'Password123';
+                                                      } else {
+                                                        data[rIdx][cIdx] = '••••••••••••';
+                                                      }
                                                       _tableGeneration++;
                                                     });
                                                     return;
