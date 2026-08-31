@@ -1405,6 +1405,50 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
     }
   }
 
+  Future<void> _exportTableToCSV(List<List<String>> data) async {
+    try {
+      final buffer = StringBuffer();
+      for (var row in data) {
+        final line = row.map((cell) => '"${cell.replaceAll('"', '""')}"').join(',');
+        buffer.writeln(line);
+      }
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/Table_Export_${DateTime.now().millisecondsSinceEpoch}.csv');
+      await file.writeAsString(buffer.toString());
+      await Share.shareXFiles([XFile(file.path)], text: 'Export Table CSV');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to export CSV: $e')));
+    }
+  }
+
+  Future<List<List<String>>?> _importTableFromCSV() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+      );
+      if (result == null || result.files.isEmpty || result.files.first.path == null) return null;
+      final file = File(result.files.first.path!);
+      final content = await file.readAsString();
+      final lines = content.split('\n');
+      final newTable = <List<String>>[];
+
+      for (var line in lines) {
+        if (line.trim().isEmpty) continue;
+        if (line.contains('\t')) {
+          newTable.add(line.split('\t').map((e) => e.trim().replaceAll('"', '')).toList());
+        } else {
+          newTable.add(line.split(',').map((e) => e.trim().replaceAll('"', '')).toList());
+        }
+      }
+      return newTable.isNotEmpty ? newTable : null;
+    } catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to import CSV: $e')));
+      return null;
+    }
+  }
+
   void _showTableEditor(MountMapProvider provider, String nodeId, String blockId, {bool isChart = false}) {
     final node = provider.nodes.firstWhere((n) => n.id == nodeId);
     final block = node.descriptionBlocks.firstWhere((b) => b.id == blockId);
@@ -1548,12 +1592,28 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                           itemBuilder: (context) => const [
                             PopupMenuItem(value: 'add_row', child: Row(children: [Icon(Icons.add_rounded, size: 16), SizedBox(width: 8), Text('Add Row Below')])),
                             PopupMenuItem(value: 'add_column', child: Row(children: [Icon(Icons.view_column_rounded, size: 16), SizedBox(width: 8), Text('Add Column Right')])),
+                            PopupMenuItem(value: 'export_csv', child: Row(children: [Icon(Icons.file_upload_rounded, size: 16, color: Colors.amberAccent), SizedBox(width: 8), Text('Export to CSV File')])),
+                            PopupMenuItem(value: 'import_csv', child: Row(children: [Icon(Icons.file_download_rounded, size: 16, color: Colors.greenAccent), SizedBox(width: 8), Text('Import from CSV File')])),
                             PopupMenuItem(value: 'eval_formulas', child: Row(children: [Icon(Icons.functions_rounded, size: 16, color: MountMapColors.teal), SizedBox(width: 8), Text('Evaluate Formulas (=SUM, =AVG)')])),
                             PopupMenuItem(value: 'clear_selection', child: Row(children: [Icon(Icons.deselect_rounded, size: 16), SizedBox(width: 8), Text('Clear Selection')])),
                             PopupMenuItem(value: 'remove_row', child: Row(children: [Icon(Icons.remove_rounded, size: 16), SizedBox(width: 8), Text('Remove Last Row')])),
                             PopupMenuItem(value: 'remove_column', child: Row(children: [Icon(Icons.view_column_rounded, size: 16), SizedBox(width: 8), Text('Remove Last Column')])),
                           ],
-                          onSelected: (value) {
+                          onSelected: (value) async {
+                            if (value == 'export_csv') {
+                              await _exportTableToCSV(data);
+                              return;
+                            }
+                            if (value == 'import_csv') {
+                              final imported = await _importTableFromCSV();
+                              if (imported != null && imported.isNotEmpty) {
+                                setModalState(() {
+                                  data = imported;
+                                  _tableGeneration++;
+                                });
+                              }
+                              return;
+                            }
                             setModalState(() {
                               if (value == 'add_row') {
                                 data.add(List.generate(data[0].length, (_) => ""));
