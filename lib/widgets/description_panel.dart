@@ -1,14 +1,185 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/node_model.dart';
 import '../providers/mountmap_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/chart_engine.dart';
 import '../screens/attachment_viewer_screen.dart';
+
+class DescriptionTemplate {
+  final String title;
+  final String category;
+  final IconData icon;
+  final String description;
+  final String recommendedChartType;
+  final List<List<String>> data;
+
+  const DescriptionTemplate({
+    required this.title,
+    required this.category,
+    required this.icon,
+    required this.description,
+    required this.recommendedChartType,
+    required this.data,
+  });
+}
+
+final List<DescriptionTemplate> kDescriptionTemplates = [
+  // MONEY MANAGEMENT
+  const DescriptionTemplate(
+    title: "Advanced Money & Cashflow",
+    category: "MONEY MANAGEMENT",
+    icon: Icons.account_balance_wallet_rounded,
+    description: "Multi-category budget, actual vs target, variance & financial status.",
+    recommendedChartType: "Histogram",
+    data: [
+      ['Category', 'Type', 'Target (IDR)', 'Actual (IDR)', 'Variance (IDR)', 'Status'],
+      ['Pemasukan Utama', 'Income', '15000000', '15500000', '+500000', 'Surplus'],
+      ['Investasi & Tabungan', 'Savings', '4000000', '4000000', '0', 'On Target'],
+      ['Kebutuhan Rutin', 'Expense', '5000000', '4800000', '-200000', 'Efficient'],
+      ['Cicilan & Tagihan', 'Expense', '3000000', '3000000', '0', 'Paid'],
+      ['Hiburan & Gaya Hidup', 'Expense', '2000000', '2300000', '+300000', 'Overbudget'],
+      ['Dana Darurat', 'Savings', '1000000', '1000000', '0', 'On Target'],
+    ],
+  ),
+  const DescriptionTemplate(
+    title: "Investment Portfolio & Asset Allocation",
+    category: "MONEY MANAGEMENT",
+    icon: Icons.pie_chart_outline_rounded,
+    description: "Asset distribution, portfolio value, ROI percentage and risk profile.",
+    recommendedChartType: "Multi-level Pie Chart",
+    data: [
+      ['Asset Class', 'Specific Asset', 'Capital (IDR)', 'Current Value (IDR)', 'ROI (%)', 'Risk'],
+      ['Saham & Reksadana', 'IHSG Top 10', '25000000', '28500000', '14.0', 'High'],
+      ['Crypto Asset', 'Bitcoin & ETH', '10000000', '13500000', '35.0', 'Very High'],
+      ['Obligasi Negara', 'ORI / SBR', '20000000', '21200000', '6.0', 'Low'],
+      ['Emas Digital', 'Antam Logam Mulia', '15000000', '16800000', '12.0', 'Low'],
+      ['Cash & Deposito', 'Bank Deposito', '10000000', '10400000', '4.0', 'Safe'],
+    ],
+  ),
+  const DescriptionTemplate(
+    title: "Debt & Financial Goal Planner",
+    category: "MONEY MANAGEMENT",
+    icon: Icons.savings_rounded,
+    description: "Target savings, monthly progress, remaining balance, and target deadline.",
+    recommendedChartType: "Radial Bar Chart",
+    data: [
+      ['Goal / Debt Name', 'Target Amount', 'Current Saved', 'Remaining', 'Deadline', 'Status'],
+      ['Dana Darurat (6 Bulan)', '60000000', '45000000', '15000000', '2025-12-31', '75% Done'],
+      ['DP Rumah Pertama', '150000000', '60000000', '90000000', '2026-06-30', '40% Done'],
+      ['Liburan Jepang', '25000000', '20000000', '5000000', '2025-08-15', '80% Done'],
+      ['Upgrade Laptop Workstation', '20000000', '18000000', '2000000', '2025-04-30', '90% Done'],
+    ],
+  ),
+
+  // CREDENTIAL & PASSWORD MANAGEMENT
+  const DescriptionTemplate(
+    title: "Secure Account & Password Vault",
+    category: "CREDENTIALS & SECURITY",
+    icon: Icons.lock_person_rounded,
+    description: "Centralized account credentials with category, security rating, and 2FA info.",
+    recommendedChartType: "Rose Chart",
+    data: [
+      ['Service / App', 'Username / Email', 'Password / Master Key', 'Category', 'Security Rating', '2FA Status'],
+      ['Google Worksuite', 'admin@mountmap.io', '••••••••••••', 'Work', 'Strong (100%)', 'Enabled (TOTP)'],
+      ['GitHub Enterprise', 'dev-lead@mountmap.io', '••••••••••••', 'Development', 'Very Strong (100%)', 'Security Key'],
+      ['AWS Console', 'root-admin', '••••••••••••', 'Infrastructure', 'Critical (100%)', 'Hardware Token'],
+      ['Bank Mandiri BKN', 'user_financial_88', '••••••••••••', 'Banking', 'High Security', 'SMS & Biometric'],
+      ['Figma Pro', 'designer@mountmap.io', '••••••••••••', 'Design', 'Medium', 'Enabled'],
+    ],
+  ),
+  const DescriptionTemplate(
+    title: "API Keys & Token Management",
+    category: "CREDENTIALS & SECURITY",
+    icon: Icons.key_rounded,
+    description: "Track API tokens, secret keys, environment, rate limits and expiration.",
+    recommendedChartType: "Butterfly Chart",
+    data: [
+      ['Service / Provider', 'Key ID / Client', 'Environment', 'Rate Limit (req/m)', 'Expiry Date', 'Status'],
+      ['OpenAI API', 'sk-proj-99882...', 'Production', '10000', '2025-12-31', 'Active'],
+      ['Stripe Payment', 'pk_live_51M...', 'Production', '5000', '2026-01-01', 'Active'],
+      ['Firebase Cloud', 'mountmap-prod-app', 'Production', '50000', '2027-05-15', 'Active'],
+      ['SendGrid Email', 'SG.x892a10...', 'Staging', '2000', '2025-09-30', 'Expiring Soon'],
+      ['Mapbox GL', 'pk.eyJ1Ijoib...', 'Development', '1000', '2025-11-01', 'Active'],
+    ],
+  ),
+  const DescriptionTemplate(
+    title: "Server & DB Connection Vault",
+    category: "CREDENTIALS & SECURITY",
+    icon: Icons.dns_rounded,
+    description: "Server IP, SSH ports, database credentials, environment and access level.",
+    recommendedChartType: "Sankey Diagram",
+    data: [
+      ['Host / Server Name', 'IP / Domain', 'Port / Service', 'Admin User', 'Auth Method', 'Env Level'],
+      ['Production Primary DB', '10.0.1.50', '5432 (PostgreSQL)', 'postgres_admin', 'TLS Certificate', 'Production'],
+      ['Redis Cache Cluster', '10.0.1.80', '6379 (Redis)', 'default', 'Auth Passkey', 'Production'],
+      ['App Kubernetes Node', '100.64.0.12', '22 (SSH)', 'deploy_sys', 'ED25519 Key', 'Production'],
+      ['Staging Sandbox', '192.168.1.100', '22 / 3306', 'dev_root', 'SSH Keypair', 'Staging'],
+    ],
+  ),
+
+  // PROJECT & TASK TRACKER
+  const DescriptionTemplate(
+    title: "Agile Sprint & Task Board",
+    category: "PROJECT & MANAGEMENT",
+    icon: Icons.task_alt_rounded,
+    description: "Sprint tasks, assignees, story points, priority levels and execution status.",
+    recommendedChartType: "Pareto Chart",
+    data: [
+      ['Task Name', 'Assignee', 'Story Points', 'Priority', 'Status', 'DueDate'],
+      ['Auth Refactoring', 'Alex Dev', '8', 'High', 'In Progress', '2025-03-20'],
+      ['UI Chart Engine Upgrade', 'Jules', '13', 'Critical', 'Completed', '2025-03-18'],
+      ['Backend Speed Optimization', 'Sarah', '5', 'Medium', 'Review', '2025-03-22'],
+      ['PDF Export Bugfix', 'Budi', '3', 'Low', 'Backlog', '2025-03-25'],
+      ['User Analytics Dashboard', 'Maya', '8', 'High', 'In Progress', '2025-03-24'],
+    ],
+  ),
+
+  // HABIT & HEALTH TRACKER
+  const DescriptionTemplate(
+    title: "Weekly Fitness & Health Tracker",
+    category: "HEALTH & LIFESTYLE",
+    icon: Icons.directions_run_rounded,
+    description: "Daily workout duration, calories burned, water intake, and sleep quality.",
+    recommendedChartType: "Histogram",
+    data: [
+      ['Day', 'Workout (Mins)', 'Calories (kcal)', 'Water (Liters)', 'Sleep (Hours)', 'Overall Feel'],
+      ['Monday', '45', '420', '2.5', '7.5', 'Great'],
+      ['Tuesday', '60', '580', '3.0', '8.0', 'Energetic'],
+      ['Wednesday', '30', '290', '2.0', '6.5', 'Tired'],
+      ['Thursday', '50', '490', '2.8', '7.0', 'Good'],
+      ['Friday', '40', '380', '2.5', '8.5', 'Rested'],
+      ['Saturday', '90', '850', '3.5', '9.0', 'Peak'],
+      ['Sunday', '20', '180', '2.0', '8.0', 'Relaxed'],
+    ],
+  ),
+
+  // SALES & MARKETING
+  const DescriptionTemplate(
+    title: "Sales Funnel & Conversion Rates",
+    category: "SALES & MARKETING",
+    icon: Icons.filter_alt_rounded,
+    description: "Funnel stages, lead volume, conversion rate %, and estimated value.",
+    recommendedChartType: "Alluvial Diagram",
+    data: [
+      ['Funnel Stage', 'Lead Count', 'Conversion Rate (%)', 'Pipeline Value (USD)'],
+      ['Website Visitors', '50000', '100.0', '0'],
+      ['Leads / Signups', '7500', '15.0', '150000'],
+      ['Qualified Leads', '3000', '40.0', '120000'],
+      ['Demo Scheduled', '1200', '40.0', '96000'],
+      ['Proposal Sent', '600', '50.0', '72000'],
+      ['Closed Won', '250', '41.6', '50000'],
+    ],
+  ),
+];
 
 class ProfessionalDescriptionPanel extends StatefulWidget {
   final NodeModel node;
@@ -27,6 +198,21 @@ class ProfessionalDescriptionPanel extends StatefulWidget {
 class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPanel> {
   String? _editingBlockId;
   int _tableGeneration = 0;
+
+  // Embedded chart interactive settings state per block
+  final Map<String, Map<String, dynamic>> _chartInteractiveState = {};
+
+  Map<String, dynamic> _getChartState(String blockId) {
+    return _chartInteractiveState.putIfAbsent(blockId, () => {
+      'primaryColor': MountMapColors.teal,
+      'secondaryColor': MountMapColors.violet,
+      'showStats': true,
+      'showTrend': false,
+      'intensity': 0.65,
+      'thickness': 22.0,
+      'opacity': 0.75,
+    });
+  }
 
   void _addTextItem() {
     final provider = Provider.of<MountMapProvider>(context, listen: false);
@@ -133,15 +319,15 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                 if (!url.startsWith('http')) url = 'https://$url';
                 String name = nameCtrl.text.isNotEmpty ? nameCtrl.text : url;
 
-                  provider.addDescriptionBlock(widget.node.id, DescriptionBlock(
+                provider.addDescriptionBlock(widget.node.id, DescriptionBlock(
                   id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    type: BlockType.attachment,
-                    attachment: AttachmentItem(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      name: name,
-                      value: url,
-                      type: 'link',
-                    ),
+                  type: BlockType.attachment,
+                  attachment: AttachmentItem(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: name,
+                    value: url,
+                    type: 'link',
+                  ),
                 ));
                 Navigator.pop(context);
               }
@@ -161,10 +347,10 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
           if (file.path != null) {
             String permanentPath = await provider.saveAttachmentFile(file.path!, file.name);
             provider.addDescriptionBlock(widget.node.id, DescriptionBlock(
-              id: DateTime.now().millisecondsSinceEpoch.toString() + "_" + file.name,
+              id: "${DateTime.now().millisecondsSinceEpoch}_${file.name}",
               type: BlockType.attachment,
               attachment: AttachmentItem(
-                id: DateTime.now().millisecondsSinceEpoch.toString() + "_" + file.name,
+                id: "${DateTime.now().millisecondsSinceEpoch}_${file.name}",
                 name: file.name,
                 value: permanentPath,
                 type: 'file'
@@ -241,25 +427,229 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
 
   void _addTableItem() {
     final provider = Provider.of<MountMapProvider>(context, listen: false);
-    final blockId = DateTime.now().millisecondsSinceEpoch.toString();
-    provider.addDescriptionBlock(widget.node.id, DescriptionBlock(
-      id: blockId,
-      type: BlockType.table,
-      tableData: [
-        ['Column 1', 'Column 2'],
-        ['Data 1', 'Data 2'],
-      ],
-    ));
-    _showTableEditor(provider, widget.node.id, blockId);
+    _showTemplatePickerModal(
+      context: context,
+      provider: provider,
+      title: "CREATE TABLE WITH TEMPLATE",
+      onSelectTemplate: (template) {
+        final blockId = DateTime.now().millisecondsSinceEpoch.toString();
+        provider.addDescriptionBlock(widget.node.id, DescriptionBlock(
+          id: blockId,
+          type: BlockType.table,
+          tableData: template.data.map((r) => List<String>.from(r)).toList(),
+        ));
+      },
+      onSelectBlank: () {
+        final blockId = DateTime.now().millisecondsSinceEpoch.toString();
+        provider.addDescriptionBlock(widget.node.id, DescriptionBlock(
+          id: blockId,
+          type: BlockType.table,
+          tableData: [
+            ['Column 1', 'Column 2'],
+            ['Data 1', 'Data 2'],
+          ],
+        ));
+        _showTableEditor(provider, widget.node.id, blockId);
+      },
+    );
   }
 
   void _addChartItem() {
     final provider = Provider.of<MountMapProvider>(context, listen: false);
-    _showChartTypePicker(context, provider);
+    _showTemplatePickerModal(
+      context: context,
+      provider: provider,
+      title: "CREATE CHART WITH TEMPLATE",
+      onSelectTemplate: (template) {
+        final blockId = DateTime.now().millisecondsSinceEpoch.toString();
+        provider.addDescriptionBlock(widget.node.id, DescriptionBlock(
+          id: blockId,
+          type: BlockType.chart,
+          chartType: template.recommendedChartType,
+          tableData: template.data.map((r) => List<String>.from(r)).toList(),
+        ));
+      },
+      onSelectBlank: () {
+        _showChartTypePicker(context, provider);
+      },
+    );
+  }
+
+  void _showTemplatePickerModal({
+    required BuildContext context,
+    required MountMapProvider provider,
+    required String title,
+    required Function(DescriptionTemplate) onSelectTemplate,
+    required VoidCallback onSelectBlank,
+  }) {
+    final isDark = provider.currentTheme == AppThemeMode.dark;
+    final categories = <String, List<DescriptionTemplate>>{};
+    for (var t in kDescriptionTemplates) {
+      categories.putIfAbsent(t.category, () => []).add(t);
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.82,
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: provider.cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: provider.textColor.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            color: MountMapColors.teal,
+                            letterSpacing: 2,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "Pilih template siap pakai untuk Money Management, Credential Vault, dsb.",
+                          style: TextStyle(
+                            color: provider.textColor.withValues(alpha: 0.5),
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      onSelectBlank();
+                    },
+                    icon: const Icon(Icons.add, size: 14),
+                    label: const Text("Blank", style: TextStyle(fontSize: 11)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: provider.textColor,
+                      side: BorderSide(color: provider.textColor.withValues(alpha: 0.2)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                children: categories.entries.map((catEntry) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          children: [
+                            Container(width: 4, height: 14, decoration: BoxDecoration(color: MountMapColors.teal, borderRadius: BorderRadius.circular(2))),
+                            const SizedBox(width: 8),
+                            Text(
+                              catEntry.key,
+                              style: TextStyle(color: provider.textColor, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ...catEntry.value.map((template) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration: BoxDecoration(
+                            color: provider.textColor.withValues(alpha: 0.03),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: provider.textColor.withValues(alpha: 0.06)),
+                          ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                            leading: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: MountMapColors.teal.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(template.icon, color: MountMapColors.teal, size: 20),
+                            ),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    template.title,
+                                    style: TextStyle(color: provider.textColor, fontSize: 13, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: MountMapColors.violet.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    template.recommendedChartType,
+                                    style: const TextStyle(color: MountMapColors.violet, fontSize: 8, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                template.description,
+                                style: TextStyle(color: provider.textColor.withValues(alpha: 0.5), fontSize: 10),
+                              ),
+                            ),
+                            trailing: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: MountMapColors.teal,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              onPressed: () {
+                                Navigator.pop(context);
+                                onSelectTemplate(template);
+                              },
+                              child: const Text("GUNAKAN", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showChartTypePicker(BuildContext context, MountMapProvider provider) {
-    final isDark = provider.currentTheme == AppThemeMode.dark;
     final Map<String, List<Map<String, dynamic>>> categories = {
       "FLOW & RELATIONAL": [
         {"name": "Alluvial Diagram", "icon": Icons.waterfall_chart_rounded},
@@ -427,7 +817,6 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
 
     _showTableEditor(provider, widget.node.id, blockId, isChart: true);
   }
-
 
   bool _isTableAttachmentValue(String value) {
     return value.startsWith(DescriptionBlock.tableFilePrefix) || value.startsWith(DescriptionBlock.tableLinkPrefix);
@@ -597,7 +986,6 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
     if (data.first.isEmpty) {
       data[0] = [""];
     }
-    final isDark = provider.currentTheme == AppThemeMode.dark;
 
     showModalBottomSheet(
       context: context,
@@ -607,82 +995,104 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => Container(
           padding: const EdgeInsets.all(24),
-          height: MediaQuery.of(context).size.height * 0.75,
+          height: MediaQuery.of(context).size.height * 0.78,
           child: Column(
             children: [
               Container(
                 width: 40, height: 4,
-                margin: const EdgeInsets.only(bottom: 20),
+                margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(color: provider.textColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2)),
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(isChart ? "Chart Data Editor" : "Table Data Editor", style: TextStyle(color: provider.textColor, fontWeight: FontWeight.bold, fontSize: 18)),
-                  PopupMenuButton<String>(
-                    tooltip: 'Table actions',
-                    icon: const Icon(Icons.more_vert_rounded, color: MountMapColors.teal),
-                    onSelected: (value) {
-                      setModalState(() {
-                        if (value == 'add_row') {
-                          data.add(List.generate(data[0].length, (_) => ""));
-                        } else if (value == 'add_column') {
-                          for (var r in data) {
-                            r.add("");
-                          }
-                        } else if (value == 'remove_row') {
-                          if (data.length > 1) {
-                            data.removeLast();
-                          }
-                        } else if (value == 'remove_column') {
-                          if (data.isNotEmpty && data[0].length > 1) {
-                            for (var r in data) {
-                              r.removeLast();
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        onPressed: () {
+                          _showTemplatePickerModal(
+                            context: context,
+                            provider: provider,
+                            title: "LOAD TEMPLATE",
+                            onSelectTemplate: (template) {
+                              setModalState(() {
+                                data = template.data.map((r) => List<String>.from(r)).toList();
+                                _tableGeneration++;
+                              });
+                            },
+                            onSelectBlank: () {},
+                          );
+                        },
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: MountMapColors.teal),
+                        label: const Text("Load Template", style: TextStyle(color: MountMapColors.teal, fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                      PopupMenuButton<String>(
+                        tooltip: 'Table actions',
+                        icon: const Icon(Icons.more_vert_rounded, color: MountMapColors.teal),
+                        onSelected: (value) {
+                          setModalState(() {
+                            if (value == 'add_row') {
+                              data.add(List.generate(data[0].length, (_) => ""));
+                            } else if (value == 'add_column') {
+                              for (var r in data) {
+                                r.add("");
+                              }
+                            } else if (value == 'remove_row') {
+                              if (data.length > 1) {
+                                data.removeLast();
+                              }
+                            } else if (value == 'remove_column') {
+                              if (data.isNotEmpty && data[0].length > 1) {
+                                for (var r in data) {
+                                  r.removeLast();
+                                }
+                              }
                             }
-                          }
-                        }
-                      });
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(
-                        value: 'add_row',
-                        child: Row(
-                          children: [
-                            Icon(Icons.add_rounded, size: 16),
-                            SizedBox(width: 8),
-                            Text('Add Row'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'add_column',
-                        child: Row(
-                          children: [
-                            Icon(Icons.view_column_rounded, size: 16),
-                            SizedBox(width: 8),
-                            Text('Add Column'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'remove_row',
-                        child: Row(
-                          children: [
-                            Icon(Icons.remove_rounded, size: 16),
-                            SizedBox(width: 8),
-                            Text('Remove Row'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'remove_column',
-                        child: Row(
-                          children: [
-                            Icon(Icons.view_column_rounded, size: 16),
-                            SizedBox(width: 8),
-                            Text('Remove Column'),
-                          ],
-                        ),
+                          });
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(
+                            value: 'add_row',
+                            child: Row(
+                              children: [
+                                Icon(Icons.add_rounded, size: 16),
+                                SizedBox(width: 8),
+                                Text('Add Row'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'add_column',
+                            child: Row(
+                              children: [
+                                Icon(Icons.view_column_rounded, size: 16),
+                                SizedBox(width: 8),
+                                Text('Add Column'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'remove_row',
+                            child: Row(
+                              children: [
+                                Icon(Icons.remove_rounded, size: 16),
+                                SizedBox(width: 8),
+                                Text('Remove Row'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'remove_column',
+                            child: Row(
+                              children: [
+                                Icon(Icons.view_column_rounded, size: 16),
+                                SizedBox(width: 8),
+                                Text('Remove Column'),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -693,8 +1103,8 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                 alignment: Alignment.centerLeft,
                 child: Text(
                   isChart
-                      ? "Edit data chart langsung di sel. Gunakan menu ⋮ kanan atas untuk add/remove row/column."
-                      : "Gunakan menu ⋮ kanan atas untuk add/remove row/column, dan menu ⋮ di tiap sel untuk file/link.",
+                      ? "Edit data chart langsung di sel atau muat Template. Gunakan menu ⋮ kanan atas untuk add/remove row/column."
+                      : "Gunakan menu ⋮ kanan atas untuk add/remove row/column, atau muat Template. Gunakan menu ⋮ di tiap sel untuk file/link.",
                   style: TextStyle(color: provider.textColor.withValues(alpha: 0.6), fontSize: 11),
                 ),
               ),
@@ -1004,7 +1414,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
-      width: MediaQuery.of(context).size.width > 600 ? 500 : double.infinity,
+      width: MediaQuery.of(context).size.width > 600 ? 550 : double.infinity,
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -1300,7 +1710,6 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
           MaterialPageRoute(builder: (context) => AttachmentViewerScreen(item: item)),
         );
       } else {
-        // Cek ekstensi untuk in-app viewer
         final path = item.value.toLowerCase();
         final supportedExt = [
           '.jpg', '.jpeg', '.png', '.webp',
@@ -1407,13 +1816,30 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
             ),
           ),
         ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            icon: const Icon(Icons.edit_rounded, size: 14),
-            label: const Text("Edit Table", style: TextStyle(fontSize: 12)),
-            onPressed: () => _showTableEditor(provider, node.id, block.id),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            TextButton.icon(
+              icon: const Icon(Icons.auto_awesome_rounded, size: 14, color: MountMapColors.teal),
+              label: const Text("Load Template", style: TextStyle(fontSize: 12, color: MountMapColors.teal)),
+              onPressed: () {
+                _showTemplatePickerModal(
+                  context: context,
+                  provider: provider,
+                  title: "APPLY TEMPLATE TO TABLE",
+                  onSelectTemplate: (template) {
+                    provider.updateDescriptionBlock(node.id, block.id, tableData: template.data.map((r) => List<String>.from(r)).toList());
+                  },
+                  onSelectBlank: () {},
+                );
+              },
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.edit_rounded, size: 14),
+              label: const Text("Edit Table", style: TextStyle(fontSize: 12)),
+              onPressed: () => _showTableEditor(provider, node.id, block.id),
+            ),
+          ],
         )
       ],
     );
@@ -1422,6 +1848,11 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
   Widget _buildChartBlock(DescriptionBlock block, MountMapProvider provider, NodeModel node) {
     final chartData = block.tableData ?? const [];
     final rowCount = chartData.length > 1 ? chartData.length - 1 : 0;
+    final chartState = _getChartState(block.id);
+    final GlobalKey chartRepaintKey = GlobalKey();
+
+    // Compute basic statistics if numerical values exist
+    final stats = _computeChartStats(chartData);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1440,14 +1871,23 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      (block.chartType ?? "Chart").toUpperCase(),
-                      style: TextStyle(
-                        color: provider.textColor.withValues(alpha: 0.85),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.4,
-                      ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.insights_rounded, color: chartState['primaryColor'] as Color, size: 18),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            (block.chartType ?? "Chart").toUpperCase(),
+                            style: TextStyle(
+                              color: provider.textColor.withValues(alpha: 0.9),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   Container(
@@ -1465,31 +1905,125 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                       ),
                     ),
                   ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(Icons.fullscreen_rounded, size: 20, color: MountMapColors.teal),
+                    tooltip: "Full Screen Interactive View",
+                    onPressed: () => _openFullscreenChartModal(provider, block),
+                  ),
                 ],
               ),
-              const SizedBox(height: 10),
-              Container(
-                height: 270,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: provider.textColor.withValues(alpha: 0.08)),
+              const SizedBox(height: 8),
+
+              // Mini Toolbar for Interactive Customization directly in Description
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _chartMiniToggle(
+                      label: "Stats",
+                      icon: Icons.analytics_outlined,
+                      isActive: chartState['showStats'] as bool,
+                      onToggle: () => setState(() => chartState['showStats'] = !(chartState['showStats'] as bool)),
+                    ),
+                    const SizedBox(width: 6),
+                    _chartMiniToggle(
+                      label: "Trend",
+                      icon: Icons.show_chart_rounded,
+                      isActive: chartState['showTrend'] as bool,
+                      onToggle: () => setState(() => chartState['showTrend'] = !(chartState['showTrend'] as bool)),
+                    ),
+                    const SizedBox(width: 6),
+                    _chartColorPresetChip(
+                      name: "Teal/Violet",
+                      p: MountMapColors.teal,
+                      s: MountMapColors.violet,
+                      onSelect: () => setState(() {
+                        chartState['primaryColor'] = MountMapColors.teal;
+                        chartState['secondaryColor'] = MountMapColors.violet;
+                      }),
+                    ),
+                    const SizedBox(width: 4),
+                    _chartColorPresetChip(
+                      name: "Amber/Red",
+                      p: Colors.amber,
+                      s: Colors.redAccent,
+                      onSelect: () => setState(() {
+                        chartState['primaryColor'] = Colors.amber;
+                        chartState['secondaryColor'] = Colors.redAccent;
+                      }),
+                    ),
+                    const SizedBox(width: 4),
+                    _chartColorPresetChip(
+                      name: "Cyan/Blue",
+                      p: Colors.cyanAccent,
+                      s: Colors.blueAccent,
+                      onSelect: () => setState(() {
+                        chartState['primaryColor'] = Colors.cyanAccent;
+                        chartState['secondaryColor'] = Colors.blueAccent;
+                      }),
+                    ),
+                  ],
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: CustomPaint(
-                    size: Size.infinite,
-                    painter: ChartEnginePainter(
-                      chartType: block.chartType ?? 'rose chart',
-                      data: NodeModel(id: 'temp', text: '', position: Offset.zero, tableData: block.tableData),
-                      isDark: provider.currentTheme == AppThemeMode.dark,
-                      visualSettings: const {'intensity': 0.55, 'thickness': 20},
+              ),
+
+              const SizedBox(height: 10),
+
+              // RepaintBoundary for PNG Exporting
+              RepaintBoundary(
+                key: chartRepaintKey,
+                child: Container(
+                  height: 280,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: provider.currentTheme == AppThemeMode.dark ? Colors.black.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: provider.textColor.withValues(alpha: 0.08)),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: CustomPaint(
+                      size: Size.infinite,
+                      painter: ChartEnginePainter(
+                        chartType: block.chartType ?? 'rose chart',
+                        data: NodeModel(id: 'temp', text: '', position: Offset.zero, tableData: block.tableData),
+                        primaryColor: chartState['primaryColor'] as Color,
+                        secondaryColor: chartState['secondaryColor'] as Color,
+                        showStats: chartState['showStats'] as bool,
+                        showTrend: chartState['showTrend'] as bool,
+                        isDark: provider.currentTheme == AppThemeMode.dark,
+                        visualSettings: {
+                          'intensity': chartState['intensity'] as double,
+                          'thickness': chartState['thickness'] as double,
+                          'opacity': chartState['opacity'] as double,
+                        },
+                      ),
                     ),
                   ),
                 ),
               ),
+
+              if (stats != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: MountMapColors.teal.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: MountMapColors.teal.withValues(alpha: 0.12)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _statBadge("SUM", stats.sum.toStringAsFixed(1)),
+                      _statBadge("AVG", stats.avg.toStringAsFixed(1)),
+                      _statBadge("MAX", stats.max.toStringAsFixed(1)),
+                      _statBadge("MIN", stats.min.toStringAsFixed(1)),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1499,22 +2033,241 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
           runSpacing: 8,
           children: [
             OutlinedButton.icon(
-              icon: const Icon(Icons.type_specimen_rounded, size: 16),
-              label: const Text("Change Type"),
+              icon: const Icon(Icons.auto_awesome_rounded, size: 14, color: MountMapColors.teal),
+              label: const Text("Template"),
+              onPressed: () {
+                _showTemplatePickerModal(
+                  context: context,
+                  provider: provider,
+                  title: "LOAD TEMPLATE TO CHART",
+                  onSelectTemplate: (template) {
+                    provider.updateDescriptionBlock(
+                      node.id,
+                      block.id,
+                      chartType: template.recommendedChartType,
+                      tableData: template.data.map((r) => List<String>.from(r)).toList(),
+                    );
+                  },
+                  onSelectBlank: () {},
+                );
+              },
+            ),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.type_specimen_rounded, size: 14),
+              label: const Text("Chart Type"),
               onPressed: () => _showChartTypePickerForExistingBlock(provider, node.id, block.id),
+            ),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.image_rounded, size: 14, color: Colors.amber),
+              label: const Text("Export PNG"),
+              onPressed: () => _exportEmbeddedChartToPNG(chartRepaintKey, block.chartType ?? 'Chart'),
             ),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: MountMapColors.teal,
                 foregroundColor: Colors.white,
               ),
-              icon: const Icon(Icons.edit_rounded, size: 16),
+              icon: const Icon(Icons.edit_rounded, size: 14),
               label: const Text("Edit Data"),
               onPressed: () => _showTableEditor(provider, node.id, block.id, isChart: true),
             ),
           ],
         ),
       ],
+    );
+  }
+
+  Widget _chartMiniToggle({required String label, required IconData icon, required bool isActive, required VoidCallback onToggle}) {
+    return InkWell(
+      onTap: onToggle,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isActive ? MountMapColors.teal.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isActive ? MountMapColors.teal : Colors.transparent),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: isActive ? MountMapColors.teal : Colors.white54),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(color: isActive ? MountMapColors.teal : Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chartColorPresetChip({required String name, required Color p, required Color s, required VoidCallback onSelect}) {
+    return InkWell(
+      onTap: onSelect,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 8, height: 8, decoration: BoxDecoration(color: p, shape: BoxShape.circle)),
+            const SizedBox(width: 2),
+            Container(width: 8, height: 8, decoration: BoxDecoration(color: s, shape: BoxShape.circle)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statBadge(String label, String val) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(color: MountMapColors.teal, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+        const SizedBox(height: 2),
+        Text(val, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  ({double sum, double avg, double max, double min})? _computeChartStats(List<List<String>> data) {
+    if (data.length < 2) return null;
+    final doubleValues = <double>[];
+
+    for (int r = 1; r < data.length; r++) {
+      for (int c = 0; c < data[r].length; c++) {
+        final d = double.tryParse(data[r][c]);
+        if (d != null) {
+          doubleValues.add(d);
+        }
+      }
+    }
+
+    if (doubleValues.isEmpty) return null;
+
+    double sum = doubleValues.reduce((a, b) => a + b);
+    double max = doubleValues.reduce((a, b) => a > b ? a : b);
+    double min = doubleValues.reduce((a, b) => a < b ? a : b);
+    double avg = sum / doubleValues.length;
+
+    return (sum: sum, avg: avg, max: max, min: min);
+  }
+
+  Future<void> _exportEmbeddedChartToPNG(GlobalKey key, String chartName) async {
+    try {
+      final boundary = key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final directory = await getTemporaryDirectory();
+      final file = File('${directory.path}/Chart_${DateTime.now().millisecondsSinceEpoch}.png');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+
+      await Share.shareXFiles([XFile(file.path)], text: 'MountMap Chart Export: $chartName');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export PNG error: $e')));
+    }
+  }
+
+  void _openFullscreenChartModal(MountMapProvider provider, DescriptionBlock block) {
+    final chartState = _getChartState(block.id);
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => Dialog(
+          backgroundColor: provider.cardColor,
+          insetPadding: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Container(
+            width: double.infinity,
+            height: MediaQuery.of(context).size.height * 0.85,
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.fullscreen_rounded, color: MountMapColors.teal),
+                        const SizedBox(width: 8),
+                        Text(
+                          (block.chartType ?? "Chart").toUpperCase(),
+                          style: TextStyle(color: provider.textColor, fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close_rounded, color: provider.textColor),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: provider.currentTheme == AppThemeMode.dark ? Colors.black.withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: provider.textColor.withValues(alpha: 0.1)),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: CustomPaint(
+                      size: Size.infinite,
+                      painter: ChartEnginePainter(
+                        chartType: block.chartType ?? 'rose chart',
+                        data: NodeModel(id: 'temp', text: '', position: Offset.zero, tableData: block.tableData),
+                        primaryColor: chartState['primaryColor'] as Color,
+                        secondaryColor: chartState['secondaryColor'] as Color,
+                        showStats: chartState['showStats'] as bool,
+                        showTrend: chartState['showTrend'] as bool,
+                        isDark: provider.currentTheme == AppThemeMode.dark,
+                        visualSettings: {
+                          'intensity': chartState['intensity'] as double,
+                          'thickness': chartState['thickness'] as double,
+                          'opacity': chartState['opacity'] as double,
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _chartMiniToggle(
+                      label: "Stats Overlay",
+                      icon: Icons.analytics_outlined,
+                      isActive: chartState['showStats'] as bool,
+                      onToggle: () {
+                        setDialogState(() => chartState['showStats'] = !(chartState['showStats'] as bool));
+                        setState(() {});
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    _chartMiniToggle(
+                      label: "Trend Line",
+                      icon: Icons.show_chart_rounded,
+                      isActive: chartState['showTrend'] as bool,
+                      onToggle: () {
+                        setDialogState(() => chartState['showTrend'] = !(chartState['showTrend'] as bool));
+                        setState(() {});
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
