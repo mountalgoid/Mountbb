@@ -179,6 +179,53 @@ final List<DescriptionTemplate> kDescriptionTemplates = [
       ['Closed Won', '250', '41.6', '50000'],
     ],
   ),
+  const DescriptionTemplate(
+    title: "Marketing Campaign ROI & Performance",
+    category: "SALES & MARKETING",
+    icon: Icons.campaign_rounded,
+    description: "Campaign spend, impressions, CTR %, leads generated, and Net ROI.",
+    recommendedChartType: "Butterfly Chart",
+    data: [
+      ['Channel / Campaign', 'Ad Spend (USD)', 'Impressions', 'CTR (%)', 'Leads', 'ROI (%)'],
+      ['Google Search Ads', '5000', '250000', '4.2', '850', '180'],
+      ['Meta Sponsored Post', '3500', '480000', '2.8', '620', '140'],
+      ['LinkedIn B2B Ads', '4000', '95000', '1.9', '210', '220'],
+      ['TikTok Video Campaign', '2000', '650000', '3.5', '410', '95'],
+      ['Email Newsletter Pro', '800', '45000', '8.5', '390', '310'],
+    ],
+  ),
+
+  // RISK & ARCHITECTURE
+  const DescriptionTemplate(
+    title: "Cyber Security & Risk Assessment Matrix",
+    category: "RISK & COMPLIANCE",
+    icon: Icons.security_rounded,
+    description: "Risk items, threat likelihood, impact level, risk score, and mitigation plan.",
+    recommendedChartType: "Contour Plot",
+    data: [
+      ['Risk Item', 'Likelihood (1-10)', 'Impact (1-10)', 'Risk Score', 'Owner', 'Mitigation Plan'],
+      ['Data Breach / Leak', '4', '9', '36', 'SecOps', 'Implement zero-trust & AES256'],
+      ['DDoS Attack Outage', '6', '7', '42', 'DevOps', 'Enable Cloudflare Enterprise Guard'],
+      ['Unpatched Dependency', '7', '5', '35', 'AppDev', 'Automate Dependabot PR reviews'],
+      ['Insider Credential Abuse', '3', '8', '24', 'IAM Team', 'Enforce Hardware YubiKeys & MFA'],
+      ['Database Corruption', '2', '10', '20', 'DBA', 'Real-time multi-region replication'],
+    ],
+  ),
+  const DescriptionTemplate(
+    title: "Software System Health & Latency Metrics",
+    category: "RISK & COMPLIANCE",
+    icon: Icons.speed_rounded,
+    description: "Microservices uptime %, latency p99 (ms), error rate %, and throughput.",
+    recommendedChartType: "Taylor Diagram",
+    data: [
+      ['Service Name', 'Uptime (%)', 'p99 Latency (ms)', 'Error Rate (%)', 'RPS', 'Health'],
+      ['Auth Gateway Service', '99.99', '45', '0.01', '3500', 'Healthy'],
+      ['User Profile API', '99.95', '120', '0.04', '1800', 'Healthy'],
+      ['Payment Processor', '99.99', '280', '0.02', '650', 'Optimal'],
+      ['Search & Vector Engine', '99.85', '450', '0.15', '1200', 'Warning'],
+      ['Notification Queue', '99.90', '85', '0.05', '2200', 'Healthy'],
+    ],
+  ),
 ];
 
 class ProfessionalDescriptionPanel extends StatefulWidget {
