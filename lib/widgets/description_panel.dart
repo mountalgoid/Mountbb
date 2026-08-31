@@ -1478,9 +1478,43 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
     return (row: row, col: col);
   }
 
+  double? _parseFlexibleNumber(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    var v = raw.trim();
+    if (v.startsWith('MM_FILE|') || v.startsWith('MM_LINK|') || v.contains('•')) return null;
+
+    var cleaned = v.replaceAll(RegExp(r'[^\d\.,+\-]'), '').trim();
+    if (cleaned.isEmpty) return null;
+    final match = RegExp(r'^([+-]?)([\d\.,]+)$').firstMatch(cleaned);
+    if (match == null) return null;
+
+    final sign = match.group(1) ?? '';
+    var numStr = match.group(2) ?? '';
+
+    if (numStr.split('.').length - 1 > 1) {
+      numStr = numStr.replaceAll('.', '');
+    } else if (numStr.contains('.') && numStr.contains(',')) {
+      numStr = numStr.replaceAll('.', '').replaceAll(',', '.');
+    } else if (numStr.contains(',') && !numStr.contains('.')) {
+      final parts = numStr.split(',');
+      if (parts.length == 2 && parts[1].length <= 2) {
+        numStr = numStr.replaceAll(',', '.');
+      } else {
+        numStr = numStr.replaceAll(',', '');
+      }
+    } else if (numStr.contains('.')) {
+      final parts = numStr.split('.');
+      if (parts.length == 2 && parts[1].length == 3 && parts[0].length <= 3) {
+        numStr = numStr.replaceAll('.', '');
+      }
+    }
+
+    return double.tryParse(sign + numStr);
+  }
+
   double _getCellValueAsDouble(List<List<String>> data, ({int row, int col}) c) {
     if (c.row < data.length && c.col < data[c.row].length) {
-      return double.tryParse(data[c.row][c.col]) ?? 0.0;
+      return _parseFlexibleNumber(data[c.row][c.col]) ?? 0.0;
     }
     return 0.0;
   }
@@ -1496,7 +1530,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
       if (r >= data.length) continue;
       for (int c = minC; c <= maxC; c++) {
         if (c < data[r].length) {
-          final d = double.tryParse(data[r][c]);
+          final d = _parseFlexibleNumber(data[r][c]);
           if (d != null) nums.add(d);
         }
       }
@@ -1508,7 +1542,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
     final nums = <double>[];
     for (int r = 1; r < untilRow; r++) {
       if (colIndex < data[r].length) {
-        final d = double.tryParse(data[r][colIndex]);
+        final d = _parseFlexibleNumber(data[r][colIndex]);
         if (d != null) nums.add(d);
       }
     }
@@ -1700,20 +1734,20 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
             if (selectedMode == 'All') {
               for (int r = 1; r < data.length; r++) {
                 for (int c = 0; c < data[r].length; c++) {
-                  final v = double.tryParse(data[r][c]);
+                  final v = _parseFlexibleNumber(data[r][c]);
                   if (v != null) nums.add(v);
                 }
               }
             } else if (selectedMode == 'Column' && activeColumn != null) {
               for (int r = 1; r < data.length; r++) {
                 if (activeColumn! < data[r].length) {
-                  final v = double.tryParse(data[r][activeColumn!]);
+                  final v = _parseFlexibleNumber(data[r][activeColumn!]);
                   if (v != null) nums.add(v);
                 }
               }
             } else if (selectedMode == 'Row' && activeRow != null && activeRow! < data.length) {
               for (int c = 0; c < data[activeRow!].length; c++) {
-                final v = double.tryParse(data[activeRow!][c]);
+                final v = _parseFlexibleNumber(data[activeRow!][c]);
                 if (v != null) nums.add(v);
               }
             } else {
@@ -1723,7 +1757,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                   final r = int.tryParse(parts[0]);
                   final c = int.tryParse(parts[1]);
                   if (r != null && c != null && r < data.length && c < data[r].length) {
-                    final v = double.tryParse(data[r][c]);
+                    final v = _parseFlexibleNumber(data[r][c]);
                     if (v != null) nums.add(v);
                   }
                 }
@@ -1854,7 +1888,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                   int count = 0;
                                   for (int r = 1; r < data.length; r++) {
                                     if (c < data[r].length) {
-                                      final v = double.tryParse(data[r][c]);
+                                      final v = _parseFlexibleNumber(data[r][c]);
                                       if (v != null) {
                                         s += v;
                                         count++;
@@ -1929,21 +1963,29 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
 
                 // SMART CALCULATOR / MATHEMATICS ANALYTICS BAR
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: MountMapColors.teal.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: MountMapColors.teal.withValues(alpha: 0.2)),
                   ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.functions_rounded, color: MountMapColors.teal, size: 18),
-                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: MountMapColors.teal.withValues(alpha: 0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.functions_rounded, color: MountMapColors.teal, size: 16),
+                              ),
+                              const SizedBox(width: 8),
                               Text(
                                 "SMART CALCULATOR & ANALYTICS",
                                 style: TextStyle(
@@ -1955,34 +1997,64 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                               ),
                             ],
                           ),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                _calcModeChip('Sel Sel', selectedMode == 'Selection', () {
-                                  setModalState(() => selectedMode = 'Selection');
-                                }),
-                                const SizedBox(width: 4),
-                                _calcModeChip('Semua Sel', selectedMode == 'All', () {
-                                  setModalState(() => selectedMode = 'All');
-                                }),
-                              ],
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: MountMapColors.teal.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              selectedMode == 'Column' && activeColumn != null
+                                  ? "Col ${activeColumn! + 1}"
+                                  : (selectedMode == 'Row' && activeRow != null
+                                      ? "Row ${activeRow! + 1}"
+                                      : (selectedMode == 'All' ? "All Cells (${nums.length})" : "Selected (${nums.length})")),
+                              style: const TextStyle(color: MountMapColors.teal, fontSize: 9, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _calcStatBadge("SUM", calcSum.toStringAsFixed(1), Colors.greenAccent),
-                            _calcStatBadge("AVG", calcAvg.toStringAsFixed(1), Colors.cyanAccent),
+                            _calcModeChip('Selected', selectedMode == 'Selection', () {
+                              setModalState(() => selectedMode = 'Selection');
+                            }),
+                            const SizedBox(width: 6),
+                            _calcModeChip('Col Mode', selectedMode == 'Column', () {
+                              setModalState(() {
+                                selectedMode = 'Column';
+                                activeColumn ??= 0;
+                              });
+                            }),
+                            const SizedBox(width: 6),
+                            _calcModeChip('Row Mode', selectedMode == 'Row', () {
+                              setModalState(() {
+                                selectedMode = 'Row';
+                                activeRow ??= 1;
+                              });
+                            }),
+                            const SizedBox(width: 6),
+                            _calcModeChip('All Cells', selectedMode == 'All', () {
+                              setModalState(() => selectedMode = 'All');
+                            }),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _calcStatBadge("SUM", calcSum % 1 == 0 ? calcSum.toInt().toString() : calcSum.toStringAsFixed(2), Colors.greenAccent),
+                            _calcStatBadge("AVG", calcAvg % 1 == 0 ? calcAvg.toInt().toString() : calcAvg.toStringAsFixed(2), Colors.cyanAccent),
                             _calcStatBadge("COUNT", calcCount.toString(), Colors.amberAccent),
-                            _calcStatBadge("MIN", calcMin.toStringAsFixed(1), Colors.orangeAccent),
-                            _calcStatBadge("MAX", calcMax.toStringAsFixed(1), Colors.redAccent),
-                            _calcStatBadge("MEDIAN", calcMed.toStringAsFixed(1), Colors.purpleAccent),
-                            _calcStatBadge("STD DEV", calcStd.toStringAsFixed(1), Colors.blueAccent),
+                            _calcStatBadge("MIN", calcMin % 1 == 0 ? calcMin.toInt().toString() : calcMin.toStringAsFixed(2), Colors.orangeAccent),
+                            _calcStatBadge("MAX", calcMax % 1 == 0 ? calcMax.toInt().toString() : calcMax.toStringAsFixed(2), Colors.redAccent),
+                            _calcStatBadge("MEDIAN", calcMed % 1 == 0 ? calcMed.toInt().toString() : calcMed.toStringAsFixed(2), Colors.purpleAccent),
+                            _calcStatBadge("STD DEV", calcStd % 1 == 0 ? calcStd.toInt().toString() : calcStd.toStringAsFixed(2), Colors.blueAccent),
                           ],
                         ),
                       ),
@@ -2068,8 +2140,8 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                 body.sort((a, b) {
                                                   final valA = cIdx < a.length ? a[cIdx] : '';
                                                   final valB = cIdx < b.length ? b[cIdx] : '';
-                                                  final numA = double.tryParse(valA);
-                                                  final numB = double.tryParse(valB);
+                                                  final numA = _parseFlexibleNumber(valA);
+                                                  final numB = _parseFlexibleNumber(valB);
                                                   if (numA != null && numB != null) return numA.compareTo(numB);
                                                   return valA.toLowerCase().compareTo(valB.toLowerCase());
                                                 });
@@ -2080,8 +2152,8 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                 body.sort((a, b) {
                                                   final valA = cIdx < a.length ? a[cIdx] : '';
                                                   final valB = cIdx < b.length ? b[cIdx] : '';
-                                                  final numA = double.tryParse(valA);
-                                                  final numB = double.tryParse(valB);
+                                                  final numA = _parseFlexibleNumber(valA);
+                                                  final numB = _parseFlexibleNumber(valB);
                                                   if (numA != null && numB != null) return numB.compareTo(numA);
                                                   return valB.toLowerCase().compareTo(valA.toLowerCase());
                                                 });
@@ -2089,7 +2161,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                               } else if (value == 'sum_column') {
                                                 double s = 0;
                                                 for (int r = 1; r < data.length; r++) {
-                                                  s += double.tryParse(data[r][cIdx]) ?? 0;
+                                                  s += _parseFlexibleNumber(data[r][cIdx]) ?? 0;
                                                 }
                                                 data.add(List.generate(data[0].length, (index) => index == 0 ? "TOTAL COL ${cIdx + 1}" : (index == cIdx ? s.toStringAsFixed(1) : "-")));
                                               }
@@ -2165,7 +2237,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                 } else if (value == 'sum_row') {
                                                   double s = 0;
                                                   for (int c = 1; c < data[rIdx].length; c++) {
-                                                    s += double.tryParse(data[rIdx][c]) ?? 0;
+                                                    s += _parseFlexibleNumber(data[rIdx][c]) ?? 0;
                                                   }
                                                   data[rIdx].add(s.toStringAsFixed(1));
                                                   if (rIdx == 0) data[0][data[0].length - 1] = "TOTAL ROW";
@@ -2304,7 +2376,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                     setModalState(() {
                                                       double s = 0;
                                                       for (int r = 1; r < rIdx; r++) {
-                                                        s += double.tryParse(data[r][cIdx]) ?? 0;
+                                                        s += _parseFlexibleNumber(data[r][cIdx]) ?? 0;
                                                       }
                                                       data[rIdx][cIdx] = s % 1 == 0 ? s.toInt().toString() : s.toStringAsFixed(2);
                                                       _tableGeneration++;
@@ -3431,7 +3503,7 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
 
     for (int r = 1; r < data.length; r++) {
       for (int c = 0; c < data[r].length; c++) {
-        final d = double.tryParse(data[r][c]);
+        final d = _parseFlexibleNumber(data[r][c]);
         if (d != null) {
           doubleValues.add(d);
         }
