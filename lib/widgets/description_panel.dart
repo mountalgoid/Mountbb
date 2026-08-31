@@ -1908,6 +1908,44 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                     return;
                                                   }
 
+                                                  if (value == 'formula_sum') {
+                                                    setModalState(() {
+                                                      double s = 0;
+                                                      for (int r = 1; r < rIdx; r++) {
+                                                        s += double.tryParse(data[r][cIdx]) ?? 0;
+                                                      }
+                                                      data[rIdx][cIdx] = s % 1 == 0 ? s.toInt().toString() : s.toStringAsFixed(2);
+                                                      _tableGeneration++;
+                                                    });
+                                                    return;
+                                                  }
+                                                  if (value == 'formula_avg') {
+                                                    setModalState(() {
+                                                      final nums = _extractColumnNumbers(data, cIdx, rIdx);
+                                                      final avg = nums.isNotEmpty ? nums.fold(0.0, (a, b) => a + b) / nums.length : 0.0;
+                                                      data[rIdx][cIdx] = avg % 1 == 0 ? avg.toInt().toString() : avg.toStringAsFixed(2);
+                                                      _tableGeneration++;
+                                                    });
+                                                    return;
+                                                  }
+                                                  if (value == 'formula_max') {
+                                                    setModalState(() {
+                                                      final nums = _extractColumnNumbers(data, cIdx, rIdx);
+                                                      final max = nums.isNotEmpty ? nums.reduce((a, b) => a > b ? a : b) : 0.0;
+                                                      data[rIdx][cIdx] = max % 1 == 0 ? max.toInt().toString() : max.toStringAsFixed(2);
+                                                      _tableGeneration++;
+                                                    });
+                                                    return;
+                                                  }
+                                                  if (value == 'formula_min') {
+                                                    setModalState(() {
+                                                      final nums = _extractColumnNumbers(data, cIdx, rIdx);
+                                                      final min = nums.isNotEmpty ? nums.reduce((a, b) => a < b ? a : b) : 0.0;
+                                                      data[rIdx][cIdx] = min % 1 == 0 ? min.toInt().toString() : min.toStringAsFixed(2);
+                                                      _tableGeneration++;
+                                                    });
+                                                    return;
+                                                  }
                                                   if (value == 'attach_file') {
                                                     await _pickFileForTableCell(provider, data, rIdx, cIdx, setModalState);
                                                     return;
@@ -1931,6 +1969,28 @@ class _ProfessionalDescriptionPanelState extends State<ProfessionalDescriptionPa
                                                   const PopupMenuItem(value: 'move_right', child: Row(children: [Icon(Icons.arrow_forward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Right')])),
                                                   const PopupMenuItem(value: 'move_up', child: Row(children: [Icon(Icons.arrow_upward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Up')])),
                                                   const PopupMenuItem(value: 'move_down', child: Row(children: [Icon(Icons.arrow_downward_rounded, size: 16), SizedBox(width: 8), Text('Move Cell Down')])),
+                                                  if (rIdx != 0)
+                                                    const PopupMenuItem(
+                                                      value: 'formula_sum',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.functions_rounded, size: 16, color: MountMapColors.teal),
+                                                          SizedBox(width: 8),
+                                                          Text('Quick Sum (Col Above)'),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  if (rIdx != 0)
+                                                    const PopupMenuItem(
+                                                      value: 'formula_avg',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.analytics_rounded, size: 16, color: MountMapColors.teal),
+                                                          SizedBox(width: 8),
+                                                          Text('Quick Avg (Col Above)'),
+                                                        ],
+                                                      ),
+                                                    ),
                                                   if (rIdx != 0)
                                                     const PopupMenuItem(
                                                       value: 'mask_password',
